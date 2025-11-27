@@ -1,0 +1,76 @@
+import 'package:chrysalis_mobile/core/utils/size_config.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+class CustomProfileMenuItem extends StatelessWidget {
+  final String iconPath;
+  final String title;
+  final VoidCallback onTap;
+
+  const CustomProfileMenuItem({
+    super.key,
+    required this.iconPath,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scaleHeight = context.scaleHeight;
+    final scaleWidth = context.scaleWidth;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: const Color(0xFFE5E5E5),
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 12 * scaleWidth,
+              vertical: 16 * scaleHeight,
+            ),
+            child: Row(
+              children: [
+                SvgPicture.asset(
+                  iconPath,
+                  width: 16,
+                  height: 16,
+                ),
+                SizedBox(width: 8 * scaleWidth),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'SF Pro Text',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      height: 1.3,
+                      letterSpacing: -0.3,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+                Transform.rotate(
+                  angle: -1.5708, // -90 degrees in radians
+                  child: const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.black,
+                    size: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
