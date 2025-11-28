@@ -1,6 +1,7 @@
 import 'package:chrysalis_mobile/core/local_storage/chat_file_storage.dart';
 import 'package:chrysalis_mobile/core/local_storage/local_storage.dart';
 import 'package:chrysalis_mobile/features/authentication/domain/usecase/logout_usecase.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 part 'logout_event.dart';
@@ -38,6 +39,9 @@ class LogoutBloc extends Bloc<LogoutEvent, LogoutState> {
 
   Future<void> _clearLocalStorage() async {
     await LocalStorage().clear();
-    await ChatFileStorage().clearAll();
+    // Skip file storage clearing on web platform as it's not supported
+    if (!kIsWeb) {
+      await ChatFileStorage().clearAll();
+    }
   }
 }

@@ -23,6 +23,36 @@ class ProfileAvatar extends StatefulWidget {
 class _ProfileAvatarState extends State<ProfileAvatar> {
   bool _isLoading = false;
   bool _hasError = false;
+  String? _lastImageUrl;
+  String? _cachedImageUrl;
+
+  @override
+  void didUpdateWidget(ProfileAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset error state and create cache-busted URL when imageUrl changes
+    if (widget.imageUrl != _lastImageUrl) {
+      _hasError = false;
+      _lastImageUrl = widget.imageUrl;
+      
+      // Create cache-busted URL only when URL actually changes
+      if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty) {
+        _cachedImageUrl = widget.imageUrl!.contains('?') 
+            ? '${widget.imageUrl!}&v=${DateTime.now().millisecondsSinceEpoch}'
+            : '${widget.imageUrl!}?v=${DateTime.now().millisecondsSinceEpoch}';
+      } else {
+        _cachedImageUrl = null;
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _lastImageUrl = widget.imageUrl;
+    if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty) {
+      _cachedImageUrl = widget.imageUrl;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +79,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
       ),
       child: ClipOval(
         child: Image.network(
-          widget.imageUrl!,
+          _cachedImageUrl ?? widget.imageUrl!,
           width: size,
           height: size,
           fit: BoxFit.cover,

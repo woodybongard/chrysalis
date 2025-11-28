@@ -6,6 +6,7 @@ import 'package:chrysalis_mobile/core/local_storage/chat_file_storage.dart';
 import 'package:chrysalis_mobile/core/theme/app_colors.dart' show AppColors;
 import 'package:chrysalis_mobile/core/theme/app_text_styles.dart';
 import 'package:chrysalis_mobile/core/utils/size_config.dart';
+import 'package:chrysalis_mobile/core/utils/web_download_utils.dart';
 import 'package:chrysalis_mobile/features/chat_detail/domain/entity/message_entity.dart';
 import 'package:chrysalis_mobile/features/chat_detail/presentation/bloc/chat_detail_bloc.dart';
 import 'package:chrysalis_mobile/features/chat_detail/presentation/widgets/emoji_reaction_overlay.dart';
@@ -88,81 +89,190 @@ class _MessageBubbleState extends State<MessageBubble> {
     }
   }
 
-  Future<void> _downloadAndDecryptFile() async {
+  Future<void> _downloadFile() async {
+    debugPrint('🔽 Starting file download process');
+    debugPrint('📁 File URL: ${widget.message.fileUrl}');
+    debugPrint('📄 File name: ${widget.message.fileName}');
+    debugPrint('💻 Platform: ${kIsWeb ? "Web" : "Mobile"}');
+    
     setState(() {
       _isDownloading = true;
       _downloadProgress = 0.0;
       _downloadFailed = false;
     });
+    
     try {
       final url = widget.message.fileUrl;
-      if (url == null || url.isEmpty) throw Exception('No file URL found');
+      if (url == null || url.isEmpty) {
+        debugPrint('❌ Error: No file URL found');
+        throw Exception('No file URL found');
+      }
 
-      final dio = Dio();
-      final response = await dio.get<List<int>>(
-        url,
-        options: Options(responseType: ResponseType.bytes),
-        onReceiveProgress: (received, total) {
-          if (total != -1) {
-            setState(() {
-              _downloadProgress = received / total;
-            });
+      if (kIsWeb) {
+        // For web: Use direct browser download instead of Dio fetch
+        debugPrint('🌐 Web: Using direct browser download for: $url');
+        
+        try {
+          // Get the original filename (remove .enc if backend adds it)
+          String downloadFileName = widget.message.fileName ?? 'download';
+          if (downloadFileName.endsWith('.enc')) {
+            downloadFileName = downloadFileName.substring(0, downloadFileName.length - 4);
           }
-        },
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed to download file');
-      }
-      final bytes = response.data!;
-
-      // Decrypt file (AES CBC PKCS7)
-      final key = widget.senderKey;
-      final iv = encrypt.IV.fromBase64(widget.iv);
-      final encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
-      final decrypted = encrypter.decryptBytes(
-        encrypt.Encrypted(Uint8List.fromList(bytes)),
-        iv: iv,
-      );
-
-      // Save file locally
-      final tempFile = File(
-        '${Directory.systemTemp.path}/${widget.message.fileName}',
-      );
-      await tempFile.writeAsBytes(decrypted);
-
-      final savedPath = await ChatFileStorage().saveFile(
-        groupId: widget.message.groupId,
-        conversationId: widget.message.id,
-        file: tempFile,
-        isSent: widget.isMine,
-      );
-
-      setState(() {
-        _fileExistsLocally = true;
-        _localFilePath = savedPath;
-        _isDownloading = false;
-      });
-
-      // Update BLoC with the new local file path for this message
-      if (mounted) {
-        context.read<ChatDetailBloc>().add(
-          UpdateMessageFilePathEvent(
-            messageId: widget.message.id,
-            filePath: savedPath,
-          ),
+          
+          debugPrint('📥 Triggering direct browser download for: $downloadFileName');
+          
+          // Use WebDownloadUtils.downloadFromUrl for direct download
+          WebDownloadUtils.downloadFromUrl(
+            url: url,
+            fileName: downloadFileName,
+          );
+          
+          debugPrint('✅ Web direct download triggered successfully');
+          
+          // Show success message for web download
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Download started: $downloadFileName'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          
+          setState(() {
+            _isDownloading = false;
+            _fileExistsLocally = false; // On web, we don't store files locally
+          });
+        } catch (webError) {
+          debugPrint('❌ Web direct download error: $webError');
+          debugPrint('📝 Web error type: ${webError.runtimeType}');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Download failed: ${webError.toString()}'),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          throw webError;
+        }
+      } else {
+        // For mobile: Use the existing approach with Dio
+        debugPrint('📱 Making mobile HTTP request to: $url');
+        final dio = Dio();
+        
+        final options = Options(
+          responseType: ResponseType.bytes,
+          headers: {
+            'User-Agent': 'Chrysalis-Mobile-App',
+          },
+          followRedirects: true,
+          maxRedirects: 5,
+          receiveTimeout: const Duration(minutes: 5),
+          sendTimeout: const Duration(minutes: 2),
         );
+        
+        debugPrint('🔗 Request headers: ${options.headers}');
+        debugPrint('⏱️ Timeouts - Receive: ${options.receiveTimeout}, Send: ${options.sendTimeout}');
+        
+        final response = await dio.get<List<int>>(
+          url,
+          options: options,
+          onReceiveProgress: (received, total) {
+            if (total != -1) {
+              final progress = received / total;
+              debugPrint('📊 Download progress: ${(progress * 100).toStringAsFixed(1)}% ($received/$total bytes)');
+              setState(() {
+                _downloadProgress = progress;
+              });
+            }
+          },
+        );
+
+        debugPrint('📡 HTTP Response - Status: ${response.statusCode}');
+        if (response.statusCode != 200) {
+          debugPrint('❌ HTTP Error: Status code ${response.statusCode}');
+          throw Exception('Failed to download file - HTTP ${response.statusCode}');
+        }
+        
+        final bytes = response.data!;
+        debugPrint('💾 Downloaded ${bytes.length} bytes');
+
+        debugPrint('📱 Processing mobile file save');
+        // Save file locally for mobile
+        final tempFilePath = '${Directory.systemTemp.path}/${widget.message.fileName}';
+        debugPrint('💾 Temp file path: $tempFilePath');
+        
+        final tempFile = File(tempFilePath);
+        await tempFile.writeAsBytes(bytes);
+        debugPrint('✅ Temp file written successfully');
+
+        final savedPath = await ChatFileStorage().saveFile(
+          groupId: widget.message.groupId,
+          conversationId: widget.message.id,
+          file: tempFile,
+          isSent: widget.isMine,
+        );
+        debugPrint('💾 File saved to: $savedPath');
+
+        setState(() {
+          _fileExistsLocally = true;
+          _localFilePath = savedPath;
+          _isDownloading = false;
+        });
+
+        // Update BLoC with the new local file path for this message
+        if (mounted) {
+          context.read<ChatDetailBloc>().add(
+            UpdateMessageFilePathEvent(
+              messageId: widget.message.id,
+              filePath: savedPath,
+            ),
+          );
+          debugPrint('📢 BLoC event sent for file path update');
+        }
       }
+      debugPrint('✅ File download process completed successfully');
     } catch (e) {
+      debugPrint('❌ Overall download error: $e');
+      debugPrint('📝 Error type: ${e.runtimeType}');
+      
+      // Enhanced error analysis for DioException
+      if (e is DioException) {
+        debugPrint('🚨 DioException Details:');
+        debugPrint('  - Type: ${e.type}');
+        debugPrint('  - Message: ${e.message}');
+        debugPrint('  - Response: ${e.response?.statusCode} ${e.response?.statusMessage}');
+        debugPrint('  - Response Headers: ${e.response?.headers}');
+        debugPrint('  - Request Options: ${e.requestOptions.uri}');
+        debugPrint('  - Request Headers: ${e.requestOptions.headers}');
+        
+        if (e.type == DioExceptionType.connectionError) {
+          debugPrint('🌐 CORS/Network Issue Detected:');
+          debugPrint('  - This is likely a CORS (Cross-Origin Resource Sharing) issue');
+          debugPrint('  - The S3 bucket may not be configured to allow web requests');
+          debugPrint('  - Check if S3 bucket has proper CORS policy');
+          debugPrint('  - Browser network tab may show more details');
+        }
+      }
+      
+      debugPrint('📊 Error stack trace: ${StackTrace.current}');
+      
       if (mounted) {
         setState(() {
           _isDownloading = false;
           _downloadProgress = 0.0;
           _downloadFailed = true;
         });
+        
+        String userFriendlyError = 'Failed to download file';
+        if (e is DioException && e.type == DioExceptionType.connectionError) {
+          userFriendlyError = 'Network error - please check your connection or try again';
+        }
+        
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to download file: $e')));
+        ).showSnackBar(SnackBar(content: Text(userFriendlyError)));
       }
     }
   }
@@ -171,7 +281,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     if (_fileExistsLocally && _localFilePath != null) {
       _openFile();
     } else if (!_isDownloading) {
-      _downloadAndDecryptFile();
+      _downloadFile();
     }
   }
 
@@ -180,6 +290,7 @@ class _MessageBubbleState extends State<MessageBubble> {
       await OpenFile.open(_localFilePath);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +376,11 @@ class _MessageBubbleState extends State<MessageBubble> {
                         style: AppTextStyles.captionRegular(context).copyWith(
                           color: AppColors.neural502,
                           fontWeight: FontWeight.w600,
-                          fontSize: kIsWeb?14.sp: 10 * scaleHeight,
+                          fontSize: getResponsiveValue(
+                            mobile: 10.sp,
+                            tablet: 12.sp,
+                            desktop: 14.sp,
+                          ),
                         ),
 
                       ),
@@ -319,9 +434,11 @@ class _MessageBubbleState extends State<MessageBubble> {
                         onTap: widget.message.type == 'FILE' ? _onFileTap : null,
                         child: Container(
                           constraints: BoxConstraints(
-                            maxWidth: kIsWeb
-                                ? 400.0 // Fixed width for web to prevent overflow
-                                : MediaQuery.of(context).size.width * 0.7, // Responsive for mobile
+                            maxWidth: getResponsiveValue(
+                              mobile: MediaQuery.of(context).size.width * 0.75, // 75% on mobile
+                              tablet: MediaQuery.of(context).size.width * 0.6,  // 60% on tablet  
+                              desktop: MediaQuery.of(context).size.width * 0.4, // 40% on desktop
+                            ),
                           ),
                           margin: widget.isMine && widget.message.status == 'FAILED'
                               ? EdgeInsets.only(bottom: 5 * scaleHeight)
@@ -371,7 +488,11 @@ class _MessageBubbleState extends State<MessageBubble> {
                                             style: AppTextStyles.captionRegular(context)
                                                 .copyWith(
                                                   color: textColor,
-                                                  fontSize: kIsWeb?16.sp:  16 * scaleHeight,
+                                                  fontSize: getResponsiveValue(
+                                                    mobile: 14.sp,
+                                                    tablet: 15.sp,
+                                                    desktop: 16.sp,
+                                                  ),
                                                 ),
                                             softWrap: true,
                                             overflow: TextOverflow.visible,
@@ -398,7 +519,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                             if (widget.onRetry != null) {
                               widget.onRetry!(widget.message);
                             } else if (_downloadFailed) {
-                              _downloadAndDecryptFile();
+                              _downloadFile();
                             }
                           },
                           child: SvgPicture.asset(
@@ -608,7 +729,14 @@ class _MessageBubbleState extends State<MessageBubble> {
             _formatTime(widget.message.createdAt),
             style: AppTextStyles.captionRegular(
               context,
-            ).copyWith(fontSize:(kIsWeb? 14 :8) * scaleHeight, color: timeColor),
+            ).copyWith(
+              fontSize: getResponsiveValue(
+                mobile: 8.sp,
+                tablet: 11.sp,
+                desktop: 14.sp,
+              ),
+              color: timeColor,
+            ),
           ),
           SizedBox(width: 4 * scaleWidth),
           if (widget.isMine && widget.message.status == 'SENDING') ...[

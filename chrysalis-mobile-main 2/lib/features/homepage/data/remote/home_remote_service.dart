@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:chrysalis_mobile/core/endpoints/api_endpoints.dart';
 import 'package:chrysalis_mobile/core/exception_handler/api_exception_handler.dart';
 import 'package:chrysalis_mobile/core/network/dio_client.dart';
@@ -22,6 +24,7 @@ class HomeRemoteServiceImpl implements HomeRemoteService {
         queryParameters: {'page': page, 'limit': limit},
         options: Options(headers: headers),
       );
+      log('Homepage response: ${response.data}');
       return HomeModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       handleApiException(e);

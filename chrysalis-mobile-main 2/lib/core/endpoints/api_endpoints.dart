@@ -11,7 +11,7 @@ class ApiEndpoints {
   static String get profile => '$baseUrl/auth/me';
   static String get updatePassword => '$baseUrl/users/update-password';
   static String get toggleNotification => '$baseUrl/users/toggle-notifications';
-  static String get updateUserProfile => '$baseUrl/users/update-user-profile';
+  static String get updateUserProfile => '$baseUrl/auth/me';
   // Chat endpoints
   static String get chatList => '$baseUrl/messages/chat-list';
   static String get messages => '$baseUrl/messages';

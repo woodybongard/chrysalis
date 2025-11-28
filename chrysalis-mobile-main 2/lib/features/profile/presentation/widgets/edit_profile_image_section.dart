@@ -6,7 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 class EditProfileImageSection extends StatelessWidget {
   final String? avatarUrl;
   final String initials;
-  final File? selectedImage;
+  final dynamic selectedImage; // Can be File on mobile or XFile/bytes on web
   final VoidCallback onCameraTap;
 
   const EditProfileImageSection({
@@ -26,44 +26,32 @@ class EditProfileImageSection extends StatelessWidget {
         children: [
           Align(
             alignment: Alignment.topCenter,
-            child: selectedImage != null
-                ? Container(
-                    width: 110,
-                    height: 110,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      image: DecorationImage(
-                        image: FileImage(selectedImage!),
+            child: Container(
+              width: 110,
+              height: 110,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: avatarUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(avatarUrl!),
                         fit: BoxFit.cover,
+                      )
+                    : null,
+                color: avatarUrl == null ? Colors.grey[300] : null,
+              ),
+              child: avatarUrl == null
+                  ? Center(
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                  )
-                : Container(
-                    width: 110,
-                    height: 110,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      image: avatarUrl != null
-                          ? DecorationImage(
-                              image: NetworkImage(avatarUrl!),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                      color: avatarUrl == null ? Colors.grey[300] : null,
-                    ),
-                    child: avatarUrl == null
-                        ? Center(
-                            child: Text(
-                              initials,
-                              style: const TextStyle(
-                                fontSize: 40,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          )
-                        : null,
-                  ),
+                    )
+                  : null,
+            ),
           ),
           // Camera Button
           Positioned(

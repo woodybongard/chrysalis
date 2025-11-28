@@ -16,4 +16,6 @@ abstract class AppRoutes {
   static const String editProfile = '/editProfile';
   static const String webMainChat = '/chat';
   static const String settings = '/settings';
+  static const String termsConditions = '/terms-conditions';
+  static const String privacyPolicy = '/privacy-policy';
 }

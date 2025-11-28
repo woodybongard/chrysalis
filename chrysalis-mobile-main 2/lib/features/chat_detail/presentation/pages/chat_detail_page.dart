@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:chrysalis_mobile/core/constants/app_assets.dart';
 import 'package:chrysalis_mobile/core/constants/app_keys.dart';
+import 'package:chrysalis_mobile/core/constants/file_constants.dart';
 import 'package:chrysalis_mobile/core/crypto_services/crypto_service.dart';
 import 'package:chrysalis_mobile/core/local_storage/chat_file_database.dart';
 import 'package:chrysalis_mobile/core/local_storage/local_storage.dart';
@@ -20,6 +21,7 @@ import 'package:chrysalis_mobile/features/chat_detail/presentation/widgets/messa
 import 'package:chrysalis_mobile/features/chat_detail/presentation/widgets/typing_indicator.dart';
 import 'package:chrysalis_mobile/features/homepage/presentation/bloc/home_bloc.dart';
 import 'package:chrysalis_mobile/features/homepage/presentation/bloc/home_event.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -106,10 +108,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           final messageId = reactionData['messageId'] as String?;
           if (messageId != null) {
             context.read<ChatDetailBloc>().add(
-              ReactionAddedEvent(
-                messageId: messageId,
-                reaction: reactionData,
-              ),
+              ReactionAddedEvent(messageId: messageId, reaction: reactionData),
             );
           }
         }
@@ -120,10 +119,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           final userId = reactionData['userId'] as String?;
           if (messageId != null && userId != null) {
             context.read<ChatDetailBloc>().add(
-              ReactionRemovedEvent(
-                messageId: messageId,
-                userId: userId,
-              ),
+              ReactionRemovedEvent(messageId: messageId, userId: userId),
             );
           }
         }
@@ -212,89 +208,94 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       child: Scaffold(
         resizeToAvoidBottomInset: true,
         backgroundColor: kIsWeb ? Colors.transparent : Colors.white,
-        appBar: kIsWeb ? null : PreferredSize(
-          preferredSize: Size.fromHeight(60 * scaleHeight),
-          child: AppBar(
-            leadingWidth: double.maxFinite,
-            backgroundColor: Colors.white,
-            elevation: 0,
-            centerTitle: false,
-            leading: Padding(
-              padding: EdgeInsets.only(left: 10 * scaleWidth),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.arrow_back,
-                      color: AppColors.black,
-                      size: 24 * scaleWidth,
-                    ),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  CircleAvatar(
-                    backgroundImage:
-                        widget.args.avatar != null &&
-                            widget.args.avatar!.isNotEmpty
-                        ? NetworkImage(widget.args.avatar!)
-                        : const AssetImage(AppAssets.appLogo) as ImageProvider,
-                    radius: 20 * scaleWidth,
-                    backgroundColor: Colors.transparent,
-                  ),
-                  SizedBox(width: 8 * scaleWidth),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: MediaQuery.sizeOf(context).width * 0.6,
-                        child: Text(
-                          widget.args.title,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.p2SemiBold(context),
-                          maxLines: 1,
+        appBar: kIsWeb
+            ? null
+            : PreferredSize(
+                preferredSize: Size.fromHeight(60 * scaleHeight),
+                child: AppBar(
+                  leadingWidth: double.maxFinite,
+                  backgroundColor: Colors.white,
+                  elevation: 0,
+                  centerTitle: false,
+                  leading: Padding(
+                    padding: EdgeInsets.only(left: 10 * scaleWidth),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.arrow_back,
+                            color: AppColors.black,
+                            size: 24 * scaleWidth,
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
                         ),
-                      ),
-                      SizedBox(height: scaleHeight * 4),
-                      ValueListenableBuilder<String?>(
-                        valueListenable: _typingNameNotifier,
-                        builder: (context, typingName, _) {
-                          if (typingName != null) {
-                            return Row(
-                              children: [
-                                Text(
-                                  '$typingName is typing',
-                                  style: AppTextStyles.captionSemibold13(
-                                    context,
-                                  ).copyWith(color: Colors.grey[700]),
-                                ),
-                                const SizedBox(width: 6),
-                                const SizedBox(
-                                  height: 16,
-                                  child: TypingIndicator(
-                                    dotSize: 6,
-                                    dotSpacing: 2,
-                                  ),
-                                ),
-                              ],
-                            );
-                          } else {
-                            return Text(
-                              widget.args.isGroup ? 'Group' : 'Conversation',
-                              style: AppTextStyles.captionSemibold13(
-                                context,
-                              ).copyWith(color: Colors.grey),
-                            );
-                          }
-                        },
-                      ),
-                    ],
+                        CircleAvatar(
+                          backgroundImage:
+                              widget.args.avatar != null &&
+                                  widget.args.avatar!.isNotEmpty
+                              ? NetworkImage(widget.args.avatar!)
+                              : const AssetImage(AppAssets.appLogo)
+                                    as ImageProvider,
+                          radius: 20 * scaleWidth,
+                          backgroundColor: Colors.transparent,
+                        ),
+                        SizedBox(width: 8 * scaleWidth),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: MediaQuery.sizeOf(context).width * 0.6,
+                              child: Text(
+                                widget.args.title,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.p2SemiBold(context),
+                                maxLines: 1,
+                              ),
+                            ),
+                            SizedBox(height: scaleHeight * 4),
+                            ValueListenableBuilder<String?>(
+                              valueListenable: _typingNameNotifier,
+                              builder: (context, typingName, _) {
+                                if (typingName != null) {
+                                  return Row(
+                                    children: [
+                                      Text(
+                                        '$typingName is typing',
+                                        style: AppTextStyles.captionSemibold13(
+                                          context,
+                                        ).copyWith(color: Colors.grey[700]),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const SizedBox(
+                                        height: 16,
+                                        child: TypingIndicator(
+                                          dotSize: 6,
+                                          dotSpacing: 2,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                } else {
+                                  return Text(
+                                    widget.args.isGroup
+                                        ? 'Group'
+                                        : 'Conversation',
+                                    style: AppTextStyles.captionSemibold13(
+                                      context,
+                                    ).copyWith(color: Colors.grey),
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
         body: Column(
           children: [
             // Custom app bar for web
@@ -302,9 +303,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               Container(
                 height: 71.h,
                 decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: AppColors.neural50),
-                  ),
+                  border: Border(bottom: BorderSide(color: AppColors.neural50)),
                 ),
                 padding: EdgeInsets.symmetric(horizontal: 24.w),
                 child: Row(
@@ -314,7 +313,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                           widget.args.avatar != null &&
                               widget.args.avatar!.isNotEmpty
                           ? NetworkImage(widget.args.avatar!)
-                          : const AssetImage(AppAssets.appLogo) as ImageProvider,
+                          : const AssetImage(AppAssets.appLogo)
+                                as ImageProvider,
                       radius: 20.r,
                       backgroundColor: Colors.transparent,
                     ),
@@ -330,7 +330,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                             style: AppTextStyles.p2SemiBold(context).copyWith(
                               fontSize: 18.sp,
                               color: AppColors.black,
-                              height: 1
+                              height: 1,
                             ),
                           ),
                           ValueListenableBuilder<String?>(
@@ -341,11 +341,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                   children: [
                                     Text(
                                       '$typingName is typing',
-                                      style: AppTextStyles.captionSemibold13(context)
-                                          .copyWith(
-                                        color: Colors.grey[700],
-                                        fontSize: 13.sp,
-                                      ),
+                                      style:
+                                          AppTextStyles.captionSemibold13(
+                                            context,
+                                          ).copyWith(
+                                            color: Colors.grey[700],
+                                            fontSize: 13.sp,
+                                          ),
                                     ),
                                     SizedBox(width: 6.w),
                                     SizedBox(
@@ -359,12 +361,16 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                 );
                               } else {
                                 return Text(
-                                  widget.args.isGroup ? 'Group' : 'Conversation',
-                                  style: AppTextStyles.captionSemibold13(context)
-                                      .copyWith(
-                                    color: Colors.grey,
-                                    fontSize: 13.sp,
-                                  ),
+                                  widget.args.isGroup
+                                      ? 'Group'
+                                      : 'Conversation',
+                                  style:
+                                      AppTextStyles.captionSemibold13(
+                                        context,
+                                      ).copyWith(
+                                        color: Colors.grey,
+                                        fontSize: 13.sp,
+                                      ),
                                 );
                               }
                             },
@@ -375,8 +381,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   ],
                 ),
               ),
-            if (!kIsWeb)
-              const Divider(height: 1, color: AppColors.neural50),
+            if (!kIsWeb) const Divider(height: 1, color: AppColors.neural50),
             // _EncryptionBanner(scaleHeight: scaleHeight, scaleWidth: scaleWidth),
             Expanded(
               child: BlocBuilder<ChatDetailBloc, ChatDetailState>(
@@ -441,11 +446,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                     ),
                                     child: Text(
                                       item.header!,
-                                      style: AppTextStyles.captionRegular(
-                                        context,
-                                      ).copyWith(color: AppColors.neural502,
-                                      fontSize: kIsWeb?12:null,
-                                      ),
+                                      style:
+                                          AppTextStyles.captionRegular(
+                                            context,
+                                          ).copyWith(
+                                            color: AppColors.neural502,
+                                            fontSize: kIsWeb ? 12 : null,
+                                          ),
                                     ),
                                   ),
                                 );
@@ -455,31 +462,40 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                 final message = item.message!;
                                 final isMine =
                                     _currentUserId == message.senderId;
-                                
+
                                 // Calculate if we should show timestamp on web
                                 bool showTimeOnWeb = true;
                                 if (kIsWeb) {
                                   // Check next message for time grouping (since list is reversed)
-                                  if (index < items.length - 1 && 
-                                      items[index + 1].type == _ChatListItemType.message) {
-                                    final nextMessage = items[index + 1].message!;
-                                    final currentTime = DateTime.parse(message.createdAt);
-                                    final nextTime = DateTime.parse(nextMessage.createdAt);
-                                    
+                                  if (index < items.length - 1 &&
+                                      items[index + 1].type ==
+                                          _ChatListItemType.message) {
+                                    final nextMessage =
+                                        items[index + 1].message!;
+                                    final currentTime = DateTime.parse(
+                                      message.createdAt,
+                                    );
+                                    final nextTime = DateTime.parse(
+                                      nextMessage.createdAt,
+                                    );
+
                                     // Group messages within the same minute and same sender
-                                    final sameMinute = currentTime.year == nextTime.year &&
+                                    final sameMinute =
+                                        currentTime.year == nextTime.year &&
                                         currentTime.month == nextTime.month &&
                                         currentTime.day == nextTime.day &&
                                         currentTime.hour == nextTime.hour &&
                                         currentTime.minute == nextTime.minute;
-                                    
-                                    final sameSender = message.senderId == nextMessage.senderId;
-                                    
+
+                                    final sameSender =
+                                        message.senderId ==
+                                        nextMessage.senderId;
+
                                     // Only show time if different minute OR different sender
                                     showTimeOnWeb = !sameMinute || !sameSender;
                                   }
                                 }
-                                
+
                                 return widget.args.decryptGroupKey != null
                                     ? MessageBubbleWrapper(
                                         key: ValueKey(message.id),
@@ -492,22 +508,45 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                         isSameSender: kIsWeb
                                             ? // Web: Group by same sender AND same timestamp
                                               index >= 1 &&
-                                              items[index - 1].type == _ChatListItemType.message &&
-                                              (items[index - 1].message?.senderId == item.message?.senderId) &&
-                                              () {
-                                                final prevMessage = items[index - 1].message!;
-                                                final currentTime = DateTime.parse(message.createdAt);
-                                                final prevTime = DateTime.parse(prevMessage.createdAt);
-                                                return currentTime.year == prevTime.year &&
-                                                    currentTime.month == prevTime.month &&
-                                                    currentTime.day == prevTime.day &&
-                                                    currentTime.hour == prevTime.hour &&
-                                                    currentTime.minute == prevTime.minute;
-                                              }()
+                                                  items[index - 1].type ==
+                                                      _ChatListItemType
+                                                          .message &&
+                                                  (items[index - 1]
+                                                          .message
+                                                          ?.senderId ==
+                                                      item.message?.senderId) &&
+                                                  () {
+                                                    final prevMessage =
+                                                        items[index - 1]
+                                                            .message!;
+                                                    final currentTime =
+                                                        DateTime.parse(
+                                                          message.createdAt,
+                                                        );
+                                                    final prevTime =
+                                                        DateTime.parse(
+                                                          prevMessage.createdAt,
+                                                        );
+                                                    return currentTime.year ==
+                                                            prevTime.year &&
+                                                        currentTime.month ==
+                                                            prevTime.month &&
+                                                        currentTime.day ==
+                                                            prevTime.day &&
+                                                        currentTime.hour ==
+                                                            prevTime.hour &&
+                                                        currentTime.minute ==
+                                                            prevTime.minute;
+                                                  }()
                                             : // Mobile: Group by same sender only
                                               index >= 1 &&
-                                              items[index - 1].type == _ChatListItemType.message &&
-                                              (items[index - 1].message?.senderId == item.message?.senderId),
+                                                  items[index - 1].type ==
+                                                      _ChatListItemType
+                                                          .message &&
+                                                  (items[index - 1]
+                                                          .message
+                                                          ?.senderId ==
+                                                      item.message?.senderId),
                                         showTimeOnWeb: showTimeOnWeb,
                                         onRetry: (msg) {
                                           context.read<ChatDetailBloc>().add(
@@ -534,7 +573,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         if (!kIsWeb)
                           const Divider(height: 1, color: AppColors.neural50),
                         SafeArea(
-                          child: kIsWeb ? _buildWebInputArea(isLoadingMore) : _buildMobileInputArea(isLoadingMore, scaleWidth, scaleHeight),
+                          child: kIsWeb
+                              ? _buildWebInputArea(isLoadingMore)
+                              : _buildMobileInputArea(
+                                  isLoadingMore,
+                                  scaleWidth,
+                                  scaleHeight,
+                                ),
                         ),
                       ],
                     );
@@ -567,15 +612,16 @@ class _EncryptionBanner extends StatelessWidget {
         children: [
           SvgPicture.asset(
             AppAssets.lockIcon,
-            width: kIsWeb?14:12 * scaleWidth,
+            width: kIsWeb ? 14 : 12 * scaleWidth,
             colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
           ),
           SizedBox(width: 6 * scaleWidth),
           Text(
             'Messages are end-to-end encrypted.',
-            style: AppTextStyles.captionRegular(
-              context,
-            ).copyWith(color: AppColors.black, fontSize: kIsWeb?14:12 * scaleHeight),
+            style: AppTextStyles.captionRegular(context).copyWith(
+              color: AppColors.black,
+              fontSize: kIsWeb ? 14 : 12 * scaleHeight,
+            ),
           ),
         ],
       ),
@@ -763,13 +809,41 @@ extension _ChatDetailPageMethods on _ChatDetailPageState {
                     onTap: () async {
                       final result = await FilePicker.platform.pickFiles(
                         type: FileType.custom,
-                        allowedExtensions: ['pdf', 'dcm', 'doc', 'docx'],
+                        allowedExtensions: FileConstants.allowedFileExtensions,
                       );
                       if (result != null &&
                           result.files.single.path != null &&
                           _currentUserId != null) {
                         if (!context.mounted) return;
                         final file = result.files.single;
+
+                        // Validate file type
+                        if (!FileConstants.isFileTypeAllowed(file.name)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'File type not supported. ${FileConstants.allowedFormatsMessage}',
+                              ),
+                              duration: const Duration(seconds: 3),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Validate file size
+                        if (!FileConstants.isFileSizeAllowed(file.size)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'File too large. Maximum size is ${FileConstants.getFormattedFileSize(FileConstants.maxFileSize)}',
+                              ),
+                              duration: const Duration(seconds: 3),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
                         var isSending = false;
                         await showDialog<void>(
                           context: context,
@@ -783,40 +857,53 @@ extension _ChatDetailPageMethods on _ChatDetailPageState {
                                   currentUserId: _currentUserId!,
                                   isLoading: isSending,
                                   onSend: () async {
-                                    var fileSize = 0;
-                                    try {
-                                      fileSize = file.path!.isNotEmpty
-                                          ? File(file.path!).lengthSync()
-                                          : 0;
-                                    } catch (_) {}
-
                                     setState(() => isSending = true);
-                                    final encryptedMessage =
-                                        CryptoService.encryptGroupMessage(
-                                      widget.args.decryptGroupKey!,
-                                      file.name,
-                                    );
-                                    final cipherText =
-                                        encryptedMessage['cipherText'];
-                                    final iv = encryptedMessage['iv'];
-                                    context.read<ChatDetailBloc>().add(
-                                          SendFileMessageEvent(
-                                            iv: iv!,
-                                            isGroup: widget.args.isGroup,
-                                            groupId: widget.args.id,
-                                            filePath: file.path!,
-                                            fileName: file.name,
-                                            fileType: file.extension ?? '',
-                                            currentUserId: _currentUserId!,
-                                            encryptedGroupKey:
-                                                widget.args.encryptedGroupKey!,
-                                            version: widget.args.version ?? 0,
-                                            fileSize: fileSize.toString(),
-                                            filePages: 1,
-                                            content: cipherText!,
+
+                                    try {
+                                      // Read file bytes (web-compatible)
+                                      List<int> fileBytes;
+                                      if (kIsWeb) {
+                                        fileBytes = file.bytes!;
+                                      } else {
+                                        fileBytes = await File(
+                                          file.path!,
+                                        ).readAsBytes();
+                                      }
+
+                                      // Skip file encryption - send filename directly without encryption
+                                      context.read<ChatDetailBloc>().add(
+                                        SendFileMessageEvent(
+                                          iv: '', // No IV needed since no encryption
+                                          isGroup: widget.args.isGroup,
+                                          groupId: widget.args.id,
+                                          fileBytes: fileBytes,
+                                          fileName: file.name,
+                                          fileType: file.extension ?? '',
+                                          currentUserId: _currentUserId!,
+                                          encryptedGroupKey:
+                                              widget.args.encryptedGroupKey!,
+                                          version: widget.args.version ?? 0,
+                                          fileSize: fileBytes.length.toString(),
+                                          filePages: 1,
+                                          content: file.name, // Send filename as plain text
+                                        ),
+                                      );
+                                      Navigator.pop(context);
+                                    } catch (e) {
+                                      setState(() => isSending = false);
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Failed to read file: $e',
+                                            ),
+                                            backgroundColor: Colors.red,
                                           ),
                                         );
-                                    Navigator.pop(context);
+                                      }
+                                    }
                                   },
                                 );
                               },
@@ -837,7 +924,7 @@ extension _ChatDetailPageMethods on _ChatDetailPageState {
                   child: RawKeyboardListener(
                     focusNode: FocusNode(),
                     onKey: (RawKeyEvent event) {
-                      if (event is RawKeyDownEvent && 
+                      if (event is RawKeyDownEvent &&
                           event.logicalKey == LogicalKeyboardKey.enter) {
                         if (event.isShiftPressed) {
                           // Shift+Enter: Manually add new line
@@ -858,7 +945,9 @@ extension _ChatDetailPageMethods on _ChatDetailPageState {
                         } else {
                           // Enter only: Send message and prevent default behavior
                           final content = _textController.text.trim();
-                          if (!isLoadingMore && content.isNotEmpty && _currentUserId != null) {
+                          if (!isLoadingMore &&
+                              content.isNotEmpty &&
+                              _currentUserId != null) {
                             _sendMessage(content);
                           }
                           return;
@@ -870,23 +959,24 @@ extension _ChatDetailPageMethods on _ChatDetailPageState {
                       controller: _textController,
                       cursorColor: const Color(0xFF23223A),
                       keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.none, // Prevent default Enter behavior
+                      textInputAction: TextInputAction.none,
+                      // Prevent default Enter behavior
                       minLines: 1,
                       maxLines: 3,
                       style: AppTextStyles.p3Regular(context).copyWith(
-                          color: AppColors.black,
-                          fontSize: 14.sp,
-                          height: 1.3,
-                          fontWeight: FontWeight.w400
+                        color: AppColors.black,
+                        fontSize: 14.sp,
+                        height: 1.3,
+                        fontWeight: FontWeight.w400,
                       ),
 
                       decoration: InputDecoration(
                         hintText: 'Write here',
                         hintStyle: AppTextStyles.p3Regular(context).copyWith(
-                            color: AppColors.neural400,
-                            fontSize: 14.sp,
-                            height: 1.3,
-                            fontWeight: FontWeight.w400
+                          color: AppColors.neural400,
+                          fontSize: 14.sp,
+                          height: 1.3,
+                          fontWeight: FontWeight.w400,
                         ),
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(
@@ -919,29 +1009,59 @@ extension _ChatDetailPageMethods on _ChatDetailPageState {
     );
   }
 
-  Widget _buildMobileInputArea(bool isLoadingMore, double scaleWidth, double scaleHeight) {
+  Widget _buildMobileInputArea(
+    bool isLoadingMore,
+    double scaleWidth,
+    double scaleHeight,
+  ) {
     // Keep existing mobile input exactly as it was
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: 17 * scaleWidth,
         vertical: 8 * scaleHeight,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-      ),
+      decoration: const BoxDecoration(color: Colors.white),
       child: Row(
         children: [
           GestureDetector(
             onTap: () async {
               final result = await FilePicker.platform.pickFiles(
                 type: FileType.custom,
-                allowedExtensions: ['pdf', 'dcm', 'doc', 'docx'],
+                allowedExtensions: FileConstants.allowedFileExtensions,
               );
               if (result != null &&
                   result.files.single.path != null &&
                   _currentUserId != null) {
                 if (!context.mounted) return;
                 final file = result.files.single;
+
+                // Validate file type
+                if (!FileConstants.isFileTypeAllowed(file.name)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'File type not supported. ${FileConstants.allowedFormatsMessage}',
+                      ),
+                      duration: const Duration(seconds: 3),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                // Validate file size
+                if (!FileConstants.isFileSizeAllowed(file.size)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'File too large. Maximum size is ${FileConstants.getFormattedFileSize(FileConstants.maxFileSize)}',
+                      ),
+                      duration: const Duration(seconds: 3),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
                 var isSending = false;
                 await showDialog<void>(
                   context: context,
@@ -955,39 +1075,44 @@ extension _ChatDetailPageMethods on _ChatDetailPageState {
                           currentUserId: _currentUserId!,
                           isLoading: isSending,
                           onSend: () async {
-                            var fileSize = 0;
-                            try {
-                              fileSize = file.path!.isNotEmpty
-                                  ? File(file.path!).lengthSync()
-                                  : 0;
-                            } catch (_) {}
-
                             setState(() => isSending = true);
-                            final encryptedMessage =
-                                CryptoService.encryptGroupMessage(
-                              widget.args.decryptGroupKey!,
-                              file.name,
-                            );
-                            final cipherText = encryptedMessage['cipherText'];
-                            final iv = encryptedMessage['iv'];
-                            context.read<ChatDetailBloc>().add(
-                                  SendFileMessageEvent(
-                                    iv: iv!,
-                                    isGroup: widget.args.isGroup,
-                                    groupId: widget.args.id,
-                                    filePath: file.path!,
-                                    fileName: file.name,
-                                    fileType: file.extension ?? '',
-                                    currentUserId: _currentUserId!,
-                                    encryptedGroupKey:
-                                        widget.args.encryptedGroupKey!,
-                                    version: widget.args.version ?? 0,
-                                    fileSize: fileSize.toString(),
-                                    filePages: 1,
-                                    content: cipherText!,
+
+                            try {
+                              // Read file bytes (mobile)
+                              final fileBytes = await File(
+                                file.path!,
+                              ).readAsBytes();
+
+                              // Skip file encryption - send filename directly without encryption
+                              context.read<ChatDetailBloc>().add(
+                                SendFileMessageEvent(
+                                  iv: '', // No IV needed since no encryption
+                                  isGroup: widget.args.isGroup,
+                                  groupId: widget.args.id,
+                                  fileBytes: fileBytes,
+                                  fileName: file.name,
+                                  fileType: file.extension ?? '',
+                                  currentUserId: _currentUserId!,
+                                  encryptedGroupKey:
+                                      widget.args.encryptedGroupKey!,
+                                  version: widget.args.version ?? 0,
+                                  fileSize: fileBytes.length.toString(),
+                                  filePages: 1,
+                                  content: file.name, // Send filename as plain text
+                                ),
+                              );
+                              Navigator.pop(context);
+                            } catch (e) {
+                              setState(() => isSending = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to read file: $e'),
+                                    backgroundColor: Colors.red,
                                   ),
                                 );
-                            Navigator.pop(context);
+                              }
+                            }
                           },
                         );
                       },
@@ -1059,16 +1184,16 @@ extension _ChatDetailPageMethods on _ChatDetailPageState {
     final cipherText = encryptedMessage['cipherText'];
     final iv = encryptedMessage['iv'];
     context.read<ChatDetailBloc>().add(
-          SendMessageEvent(
-            isGroup: widget.args.isGroup,
-            id: widget.args.id,
-            content: cipherText!,
-            iv: iv!,
-            currentUserId: _currentUserId!,
-            encryptedGroupKey: widget.args.encryptedGroupKey!,
-            version: widget.args.version ?? 0,
-          ),
-        );
+      SendMessageEvent(
+        isGroup: widget.args.isGroup,
+        id: widget.args.id,
+        content: cipherText!,
+        iv: iv!,
+        currentUserId: _currentUserId!,
+        encryptedGroupKey: widget.args.encryptedGroupKey!,
+        version: widget.args.version ?? 0,
+      ),
+    );
 
     _textController.clear();
     _hasEmittedTyping = false;

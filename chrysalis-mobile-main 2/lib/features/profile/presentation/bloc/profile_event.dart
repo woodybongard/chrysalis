@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -54,8 +55,23 @@ class UpdateProfileEvent extends ProfileEvent {
 class UpdateProfileImageEvent extends ProfileEvent {
   const UpdateProfileImageEvent(this.image);
   
-  final File image;
+  final XFile image;
   
   @override
   List<Object?> get props => [image];
+}
+
+class UpdateProfileImageWebEvent extends ProfileEvent {
+  const UpdateProfileImageWebEvent({
+    required this.imageBytes,
+    required this.fileName,
+    required this.mimeType,
+  });
+  
+  final Uint8List imageBytes;
+  final String fileName;
+  final String mimeType;
+  
+  @override
+  List<Object?> get props => [imageBytes, fileName, mimeType];
 }

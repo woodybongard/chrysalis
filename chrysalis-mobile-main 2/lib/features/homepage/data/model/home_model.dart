@@ -56,7 +56,7 @@ class LastMessageModel extends LastMessageEntity {
     required super.isSenderYou,
     required super.status,
     required super.sender,
-    required super.iv,
+    super.iv,
     required super.encryptedGroupKey,
     super.decryptedGroupKey,
   });
@@ -70,7 +70,7 @@ class LastMessageModel extends LastMessageEntity {
       isSenderYou: json['isSenderYou'] as bool,
       status: json['status'] as String,
       sender: SenderModel.fromJson(json['sender'] as Map<String, dynamic>),
-      iv: json['iv'] as String,
+      iv: json['iv'] as String?,
       encryptedGroupKey: json['aesKeyEncB64Url'] as String,
     );
   }

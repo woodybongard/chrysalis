@@ -1,5 +1,6 @@
 import 'package:chrysalis_mobile/core/theme/app_colors.dart';
 import 'package:chrysalis_mobile/core/theme/app_text_styles.dart';
+import 'package:chrysalis_mobile/core/utils/size_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -15,6 +16,30 @@ class SettingsNotificationsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sectionTitleSize = getResponsiveValue(
+      mobile: 16.sp,
+      tablet: 17.sp,
+      desktop: 18.sp,
+    );
+
+    final cardPadding = getResponsiveValue(
+      mobile: EdgeInsets.all(16.r),
+      tablet: EdgeInsets.all(18.r),
+      desktop: EdgeInsets.all(20.r),
+    );
+
+    final titleFontSize = getResponsiveValue(
+      mobile: 14.sp,
+      tablet: 15.sp,
+      desktop: 16.sp,
+    );
+
+    final descriptionFontSize = getResponsiveValue(
+      mobile: 12.sp,
+      tablet: 13.sp,
+      desktop: 14.sp,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -22,11 +47,11 @@ class SettingsNotificationsSection extends StatelessWidget {
           'Notifications',
           style: AppTextStyles.h5bold(
             context,
-          ).copyWith(fontSize: 18.sp, color: const Color(0xFF161616)),
+          ).copyWith(fontSize: sectionTitleSize, color: const Color(0xFF161616)),
         ),
         SizedBox(height: 16.h),
         Container(
-          padding: EdgeInsets.all(20.r),
+          padding: cardPadding,
           decoration: BoxDecoration(
             color: AppColors.white,
             borderRadius: BorderRadius.circular(18.r),
@@ -43,13 +68,16 @@ class SettingsNotificationsSection extends StatelessWidget {
                       'Email notifications',
                       style: AppTextStyles.p2SemiBold(
                         context,
-                      ).copyWith(color: AppColors.black),
+                      ).copyWith(
+                        color: AppColors.black,
+                        fontSize: titleFontSize,
+                      ),
                     ),
                     SizedBox(height: 8.h),
                     Text(
                       'Stay updated on changes like cancellations or fulfillment requests.',
                       style: AppTextStyles.p3Regular(context).copyWith(
-                        fontSize: 14.sp,
+                        fontSize: descriptionFontSize,
                         color: const Color(0xFF666666),
                       ),
                     ),

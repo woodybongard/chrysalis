@@ -5,6 +5,7 @@ import 'package:chrysalis_mobile/features/profile/domain/usecase/toggle_notifica
 import 'package:chrysalis_mobile/features/profile/domain/usecase/update_profile_usecase.dart';
 import 'package:chrysalis_mobile/features/profile/presentation/bloc/profile_event.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 part 'profile_state.dart';
@@ -21,6 +22,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     on<ToggleNotificationsEvent>(_onToggleNotifications);
     on<UpdateProfileEvent>(_onUpdateProfile);
     on<UpdateProfileImageEvent>(_onUpdateProfileImage);
+    on<UpdateProfileImageWebEvent>(_onUpdateProfileImageWeb);
   }
 
   final GetUserProfileUseCase getUserProfileUseCase;
@@ -204,6 +206,10 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   ) async {
     if (state.user == null) return;
 
+    debugPrint('🔄 ProfileBloc: Starting profile image update');
+    debugPrint('📂 Image path: ${event.image.path}');
+    debugPrint('📂 Image name: ${event.image.name}');
+
     emit(state.copyWith(
       isProfileUpdateLoading: true,
       clearError: true,
@@ -211,12 +217,14 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     ));
 
     try {
+      debugPrint('📤 ProfileBloc: Calling updateProfileUsecase');
       await updateProfileUsecase(
         firstName: state.user!.firstName,
         lastName: state.user!.lastName,
         username: state.user!.username,
-        image: event.image,
+        imageFile: event.image,
       );
+      debugPrint('✅ ProfileBloc: Profile image update successful');
 
       emit(state.copyWith(
         isProfileUpdateLoading: false,
@@ -234,6 +242,72 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       // Reload profile to get updated avatar URL from server
       add(const LoadUserProfileEvent());
     } catch (e) {
+      emit(state.copyWith(
+        isProfileUpdateLoading: false,
+        errorMessage: e.toString(),
+        clearSuccess: true,
+      ));
+
+      // Clear error message after a short delay
+      Future.delayed(const Duration(milliseconds: 3000), () {
+        if (!emit.isDone) {
+          emit(state.copyWith(clearError: true));
+        }
+      });
+    }
+  }
+
+  Future<void> _onUpdateProfileImageWeb(
+    UpdateProfileImageWebEvent event,
+    Emitter<ProfileState> emit,
+  ) async {
+    if (state.user == null) return;
+
+    debugPrint('🎯 ProfileBloc: *** WEB EVENT RECEIVED *** UpdateProfileImageWebEvent');
+    debugPrint('🌐 ProfileBloc: Starting web profile image update');
+    debugPrint('👤 User ID: ${state.user!.id}');
+    debugPrint('👤 First Name: ${state.user!.firstName}');
+    debugPrint('👤 Last Name: ${state.user!.lastName}');
+    debugPrint('👤 Username: ${state.user!.username}');
+    debugPrint('📂 File name: ${event.fileName}');
+    debugPrint('📂 MIME type: ${event.mimeType}');
+    debugPrint('📂 File size: ${event.imageBytes.length} bytes');
+
+    emit(state.copyWith(
+      isProfileUpdateLoading: true,
+      clearError: true,
+      clearSuccess: true,
+    ));
+
+    try {
+      debugPrint('📤 ProfileBloc: Calling updateProfileWebUsecase');
+      await updateProfileUsecase.callWeb(
+        firstName: state.user!.firstName,
+        lastName: state.user!.lastName,
+        username: state.user!.username,
+        imageBytes: event.imageBytes,
+        fileName: event.fileName,
+        mimeType: event.mimeType,
+      );
+      debugPrint('✅ ProfileBloc: Web profile image update successful');
+
+      emit(state.copyWith(
+        isProfileUpdateLoading: false,
+        successMessage: 'Profile image updated successfully',
+        clearError: true,
+      ));
+
+      // Clear success message after a short delay
+      Future.delayed(const Duration(milliseconds: 2000), () {
+        if (!emit.isDone) {
+          emit(state.copyWith(clearSuccess: true));
+        }
+      });
+
+      // Reload profile to get updated avatar URL from server
+      add(const LoadUserProfileEvent());
+    } catch (e) {
+      debugPrint('❌ ProfileBloc: Web profile image update failed - $e');
       emit(state.copyWith(
         isProfileUpdateLoading: false,
         errorMessage: e.toString(),

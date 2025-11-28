@@ -4,7 +4,6 @@ import 'package:chrysalis_mobile/core/di/service_locator.dart';
 import 'package:chrysalis_mobile/core/local_storage/chat_file_storage.dart';
 import 'package:chrysalis_mobile/core/local_storage/local_storage.dart';
 import 'package:chrysalis_mobile/core/utils/device_utils.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:chrysalis_mobile/features/authentication/domain/entity/auth_error_entity.dart';
 import 'package:chrysalis_mobile/features/authentication/domain/entity/login_request_entity.dart';
 import 'package:chrysalis_mobile/features/authentication/domain/usecase/login_usecase.dart';
@@ -12,6 +11,7 @@ import 'package:chrysalis_mobile/features/authentication/domain/usecase/register
 import 'package:chrysalis_mobile/features/authentication/presentation/bloc/login_bloc/login_event.dart';
 import 'package:chrysalis_mobile/features/authentication/presentation/bloc/login_bloc/login_state.dart';
 import 'package:chrysalis_mobile/features/notifications/data/remote/notification_remote_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class LoginBloc extends Bloc<LoginEvent, LoginState> {
@@ -74,14 +74,13 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
       );
       await storage.write(key: AppKeys.isLoggedIn, value: 'true');
       await storage.write(key: AppKeys.userID, value: response.user.id);
-      
+
       // Clear file storage only on mobile platforms (not supported on web)
       if (!kIsWeb) {
         try {
           await ChatFileStorage().clearAll();
         } catch (e) {
           // Ignore file storage errors on unsupported platforms
-          print('File storage clear failed: $e');
         }
       }
       if (response.keys.hasKeys == true) {

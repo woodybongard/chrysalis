@@ -59,6 +59,8 @@
 		</dict>
 		<key>NSUserNotificationUsageDescription</key>
 		<string>We use notifications to inform you about important updates.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>This app requires access to your camera to allow you to take and upload photos.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>This app requires access to your photo library to allow you to select and upload images.</string>
 		<key>ITSAppUsesNonExemptEncryption</key>

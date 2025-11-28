@@ -2,7 +2,7 @@ name: chrysalis_mobile
 description: "A Flutter-based mobile application for secure messaging and communication with real-time chat features, file sharing, and push notifications."
 publish_to: 'none'
 
-version: 1.1.0+10
+version: 1.1.1+11
 
 environment:
   sdk: ^3.8.0
@@ -40,7 +40,8 @@ dependencies:
   pointycastle: ^3.7.4
   shimmer: ^3.0.0
   socket_io_client: ^3.1.2
-  sqflite: ^2.3.0
+  sqflite: ^2.4.2
+  sqflite_common_ffi_web: ^1.1.0
   url_launcher: ^6.3.0
   package_info_plus: ^8.0.2
   go_router: ^14.6.1
@@ -49,6 +50,7 @@ dependencies:
   image_picker: ^1.0.4
   flutter_screenutil: ^5.9.3
   emoji_picker_flutter: ^4.4.0
+  fluttertoast: ^9.0.0
 
 dev_dependencies:
   flutter_test:

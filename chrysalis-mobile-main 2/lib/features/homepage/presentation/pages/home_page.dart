@@ -237,7 +237,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     group.typingText!.isNotEmpty
                                                 ? Padding(
                                                     padding: EdgeInsets.only(
-                                                      top: scaleHeight * 4.0,
+                                                      top: scaleHeight * 2.0,
                                                     ),
                                                     child: SizedBox(
                                                       height: scaleHeight * 18,
@@ -300,7 +300,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       top: scaleHeight * 4.0,
                                                     ),
                                                     child: SizedBox(
-                                                      height: scaleHeight * 18,
+                                                      height: scaleHeight * 20,
                                                       child: Row(
                                                         children: [
                                                           if (group
@@ -319,7 +319,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                               .black
                                                                         : AppColors
                                                                               .neural500,
-                                                                    fontSize: kIsWeb?14.sp:null,
+                                                                    fontSize: kIsWeb?13.sp:null,
                                                                     fontWeight: kIsWeb ?FontWeight.w400 :null,
                                                                   ),
                                                             ),
@@ -365,15 +365,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                   const SizedBox(),
                                                                 Expanded(
                                                                   child: Text(
-                                                                    group.lastMessage!.content.isNotEmpty &&
+                                                                    (group.lastMessage!.content.isNotEmpty &&
                                                                             group.lastMessage!.decryptedGroupKey !=
-                                                                                null
+                                                                                null &&
+                                                                            group.lastMessage!.iv !=
+                                                                                null)
                                                                         ? CryptoService.decryptGroupMessage(
                                                                             group.lastMessage!.decryptedGroupKey!,
                                                                             group.lastMessage!.content,
-                                                                            group.lastMessage!.iv,
+                                                                            group.lastMessage!.iv!,
                                                                           )
-                                                                        : '',
+                                                                        : group.lastMessage!.content,
                                                                     maxLines: 1,
                                                                     overflow:
                                                                         TextOverflow
@@ -387,7 +389,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                       fontStyle:
                                                                           FontStyle
                                                                               .normal,
-                                                                      fontSize: kIsWeb?14.sp:null,
+                                                                      fontSize: kIsWeb?13.sp:null,
                                                                       fontWeight: kIsWeb ?FontWeight.w400 :null,
                                                                     ),
                                                                   ),
@@ -746,8 +748,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     return SvgPicture.asset(
       asset,
-      height: kIsWeb?18.sp: scaleHeight * 16,
-      width: kIsWeb?18.sp:  scaleHeight * 16,
+      height: kIsWeb?16.sp: scaleHeight * 16,
+      width: kIsWeb?16.sp:  scaleHeight * 16,
     );
   }
 }

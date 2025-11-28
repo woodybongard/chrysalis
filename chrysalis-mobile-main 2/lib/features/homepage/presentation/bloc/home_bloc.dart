@@ -198,38 +198,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
         emit(HomeLoaded(data));
       }
     } catch (e) {
-      // On failure, keep previous loaded data if any; else emit empty loaded
-      if (accumulatedGroups.isNotEmpty) {
-        emit(
-          HomeLoaded(
-            HomeEntity(
-              data: accumulatedGroups,
-              pagination:
-                  lastPagination ??
-                  PaginationEntity(
-                    page: 1,
-                    limit: limit,
-                    total: accumulatedGroups.length,
-                    totalPages: 1,
-                  ),
-            ),
-          ),
-        );
-      } else {
-        emit(
-          HomeLoaded(
-            HomeEntity(
-              data: const [],
-              pagination: PaginationEntity(
-                page: 1,
-                limit: 13,
-                total: 0,
-                totalPages: 1,
-              ),
-            ),
-          ),
-        );
-      }
+      emit(HomeError(e.toString() ?? 'An unknown error occurred'));
     }
   }
 

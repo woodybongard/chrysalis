@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:chrysalis_mobile/features/profile/data/remote/profile_remote_service.dart';
 import 'package:chrysalis_mobile/features/profile/domain/entity/profile_response_entity.dart';
@@ -40,6 +41,25 @@ class ProfileRepositoryImpl implements ProfileRepository {
       username: username,
       image: image,
       imageFile: imageFile,
+    );
+  }
+
+  @override
+  Future<void> updateUserProfileWeb({
+    required String firstName,
+    required String lastName,
+    required String username,
+    required Uint8List imageBytes,
+    required String fileName,
+    required String mimeType,
+  }) async {
+    await remoteService.updateUserProfileWeb(
+      firstName: firstName,
+      lastName: lastName,
+      username: username,
+      imageBytes: imageBytes,
+      fileName: fileName,
+      mimeType: mimeType,
     );
   }
 }

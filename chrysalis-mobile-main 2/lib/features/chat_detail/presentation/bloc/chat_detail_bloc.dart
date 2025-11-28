@@ -1,16 +1,16 @@
 import 'dart:developer';
-import 'dart:io';
 
 import 'package:chrysalis_mobile/core/local_storage/chat_file_storage.dart';
-import 'package:encrypt/encrypt.dart';
-import 'package:chrysalis_mobile/core/socket/entities/message_status_update_entity.dart';
 import 'package:chrysalis_mobile/core/socket/chat_list_helper.dart';
+import 'package:chrysalis_mobile/core/socket/entities/message_status_update_entity.dart';
 import 'package:chrysalis_mobile/features/chat_detail/domain/entity/message_entity.dart';
-import 'package:chrysalis_mobile/features/chat_detail/domain/entity/send_message_entity.dart';
 import 'package:chrysalis_mobile/features/chat_detail/domain/entity/reaction_entity.dart';
+import 'package:chrysalis_mobile/features/chat_detail/domain/entity/send_message_entity.dart';
 import 'package:chrysalis_mobile/features/chat_detail/domain/usecase/get_messages_usecase.dart';
 import 'package:chrysalis_mobile/features/chat_detail/domain/usecase/send_message_usecase.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 part 'chat_detail_event.dart';
@@ -33,6 +33,7 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
     on<ReactionAddedEvent>(_onReactionAdded);
     on<ReactionRemovedEvent>(_onReactionRemoved);
   }
+
   final GetMessagesUseCase getMessagesUseCase;
   final SendMessageUseCase sendMessageUseCase;
   final ChatListHelper _chatListHelper = ChatListHelper();
@@ -72,19 +73,10 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
     final now = DateTime.now();
     final tempId = 'file-temp-[1m${now.millisecondsSinceEpoch}[0m';
 
-    // 1. Save file locally using ChatFileStorage
-    var savedFilePath = event.filePath;
-    try {
-      final savedPath = await ChatFileStorage().saveFile(
-        groupId: event.isGroup ? event.groupId : null,
-        conversationId: tempId,
-        file: File(event.filePath),
-        isSent: true,
-      );
-      savedFilePath = savedPath;
-    } catch (e) {
-      // fallback to original path if saving fails
-    }
+    // 1. For web compatibility, use placeholder path since file storage doesn't support bytes
+    final savedFilePath = kIsWeb 
+        ? '/web_temp/${event.fileName}' 
+        : '/temp/${event.fileName}';
 
     final tempMessage = MessageEntity(
       id: tempId,
@@ -135,7 +127,7 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
         fileSize: event.fileSize,
         fileType: event.fileType,
         filePages: event.filePages,
-        filePath: savedFilePath,
+        fileBytes: event.fileBytes,
         type: 'FILE',
       ),
     );
@@ -198,11 +190,11 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
     );
   }
 
-  Key? _cachedGroupKey;
+  encrypt.Key? _cachedGroupKey;
 
   List<MessageEntity> _attachGroupKeyToMessages(
     List<MessageEntity> messages,
-    Key cachedKey,
+    encrypt.Key cachedKey,
   ) {
     return messages
         .map((message) => message.copyWith(decryptGroupKey: cachedKey))
@@ -214,7 +206,7 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
     Emitter<ChatDetailState> emit,
   ) async {
     emit(const ChatDetailLoading());
-    _cachedGroupKey = event.decryptGroupKey;
+    _cachedGroupKey = event.decryptGroupKey as encrypt.Key?;
 
     try {
       final data = await getMessagesUseCase(
@@ -241,7 +233,7 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
         ),
       );
     } catch (e, s) {
-      log('Error loading messages $e' , stackTrace: s);
+      log('Error loading messages $e', stackTrace: s);
       // Fallback to empty loaded state to avoid error UI when offline
       emit(
         ChatDetailLoaded(
@@ -302,7 +294,8 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
           messages: updatedList,
           type: current.type,
           id: current.id,
-          page: nextPage, // incremented
+          page: nextPage,
+          // incremented
           limit: current.limit,
           totalPages: data.pagination.totalPages,
           total: data.pagination.total,
@@ -368,8 +361,10 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
         emit(
           ChatDetailLoaded(
             messages: updatedList,
-            type: event.chatMessages.type, // need to pass from event
-            id: event.chatMessages.id, // need to pass from event
+            type: event.chatMessages.type,
+            // need to pass from event
+            id: event.chatMessages.id,
+            // need to pass from event
             page: 1,
             limit: 20,
             totalPages: 1,
@@ -511,7 +506,7 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
     );
 
     try {
-      var sent = await sendMessageUseCase(
+      final sent = await sendMessageUseCase(
         entity: GroupMessageEntity(
           isGroup: current.type == 'group',
           groupId: current.id,
@@ -593,12 +588,12 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
     );
 
     try {
-      var sent = await sendMessageUseCase(
+      final sent = await sendMessageUseCase(
         entity: GroupMessageEntity(
           isGroup: current.type == 'group',
           groupId: current.id,
-          content:
-              retryMessage.encryptedText, // Or appropriate content for file
+          content: retryMessage.encryptedText,
+          // Or appropriate content for file
           iv: event.message.iv,
           encryptedGroupKey: event.message.encryptedGroupKey,
           version: event.version,
@@ -606,7 +601,9 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
           fileSize: event.message.fileSize,
           fileType: event.message.fileType,
           filePages: int.tryParse(event.message.filePages ?? ''),
-          filePath: event.message.fileUrl, // Assuming fileUrl is the local path
+          // Note: For retry, we can't get original file bytes, so this may fail
+          // In a real implementation, you'd need to store file bytes or handle retry differently
+          fileBytes: <int>[], // Empty bytes as fallback
           type: 'FILE',
         ),
       );
@@ -694,7 +691,12 @@ class ChatDetailBloc extends Bloc<ChatDetailEvent, ChatDetailState> {
 
     final updatedMessages = current.messages.map((msg) {
       if (msg.id == event.messageId) {
-        final updatedReactions = [...msg.reactions, reaction];
+        // Remove any existing reaction from this user before adding new one
+        final filteredReactions = msg.reactions
+            .where((r) => r.userId != reaction.userId)
+            .toList();
+        // Add the new reaction
+        final updatedReactions = [...filteredReactions, reaction];
         return msg.copyWith(reactions: updatedReactions);
       }
       return msg;

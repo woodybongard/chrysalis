@@ -119,6 +119,12 @@ class ChatFileStorage {
 
   /// Clear all files and DB cache
   Future<void> clearAll() async {
+    if (kIsWeb) {
+      // On web, only clear database entries, no file system operations
+      await ChatFileDatabase().clearAll();
+      return;
+    }
+    
     try {
       final base = await _getBaseDir();
       if (base.existsSync()) {

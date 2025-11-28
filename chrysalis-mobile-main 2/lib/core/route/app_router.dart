@@ -1,5 +1,7 @@
 import 'package:chrysalis_mobile/core/route/app_routes.dart';
 import 'package:chrysalis_mobile/features/authentication/presentation/pages/login_page.dart';
+import 'package:chrysalis_mobile/features/authentication/presentation/pages/terms_conditions_page.dart';
+import 'package:chrysalis_mobile/features/authentication/presentation/pages/privacy_policy_page.dart';
 import 'package:chrysalis_mobile/features/chat_detail/domain/entity/chat_detail_args.dart';
 import 'package:chrysalis_mobile/features/chat_detail/presentation/pages/chat_detail_page.dart';
 import 'package:chrysalis_mobile/features/homepage/presentation/pages/home_page.dart';
@@ -76,6 +78,16 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.settings,
       name: AppRoutes.settings,
       builder: (context, state) => const SettingsPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.termsConditions,
+      name: AppRoutes.termsConditions,
+      builder: (context, state) => const TermsConditionsPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.privacyPolicy,
+      name: AppRoutes.privacyPolicy,
+      builder: (context, state) => const PrivacyPolicyPage(),
     ),
   ],
   errorBuilder: (context, state) => const WelcomePage(),

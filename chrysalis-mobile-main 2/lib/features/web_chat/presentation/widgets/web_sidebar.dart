@@ -71,9 +71,10 @@ class WebSidebar extends StatelessWidget {
     required bool isActive,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12.r),
+
       child: Container(
         width: 44.w,
         height: 40.w,
@@ -99,9 +100,9 @@ class WebSidebar extends StatelessWidget {
     required bool isActive,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12.r),
       child: Container(
         width: 44.w,
         height: 40.w,

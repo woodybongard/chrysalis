@@ -6,7 +6,7 @@ import 'package:chrysalis_mobile/core/theme/app_text_styles.dart';
 import 'package:chrysalis_mobile/core/utils/size_config.dart';
 import 'package:chrysalis_mobile/core/widgets/custom_button.dart';
 import 'package:chrysalis_mobile/core/widgets/custom_text_field.dart';
-import 'package:chrysalis_mobile/core/widgets/modern_snackbar.dart';
+import 'package:chrysalis_mobile/core/utils/toast_utils.dart';
 import 'package:chrysalis_mobile/features/authentication/presentation/bloc/login_bloc/login_bloc.dart';
 import 'package:chrysalis_mobile/features/authentication/presentation/bloc/login_bloc/login_event.dart';
 import 'package:chrysalis_mobile/features/authentication/presentation/bloc/login_bloc/login_state.dart';
@@ -27,6 +27,28 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   final TextEditingController _idController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  
+  @override
+  void initState() {
+    super.initState();
+    _idController.addListener(_updateButtonState);
+    _passwordController.addListener(_updateButtonState);
+  }
+  
+  @override
+  void dispose() {
+    _idController.removeListener(_updateButtonState);
+    _passwordController.removeListener(_updateButtonState);
+    _idController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+  
+  void _updateButtonState() {
+    setState(() {
+      // This will trigger a rebuild to update button state
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +62,7 @@ class _LoginPageState extends State<LoginPage> {
     return BlocConsumer<LoginBloc, LoginState>(
       listener: (context, state) {
         if (state is LoginError) {
-          showModernSnackbar(context, state.message);
+          ToastUtils.showError(message: state.message, context: context);
         }
         if (state is LoginSuccess) {
           if (!state.response.keys.hasKeys) {
@@ -59,8 +81,10 @@ class _LoginPageState extends State<LoginPage> {
       },
       builder: (context, state) {
         final isLoading = state is LoginLoading;
-        final isValid = state is LoginInitial && state.isValid;
-
+        final isValid = state is LoginInitial 
+            ? state.isValid 
+            : _idController.text.isNotEmpty && _passwordController.text.isNotEmpty;
+            
         return Scaffold(
           resizeToAvoidBottomInset: true,
           backgroundColor: AppColors.white,

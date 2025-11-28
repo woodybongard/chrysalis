@@ -16,6 +16,9 @@ class DioClient {
       )..interceptors.addAll([LoggerInterceptor(), AuthInterceptor()]);
   late final Dio _dio;
   Dio get dio => _dio;
+  
+  // Special timeout for large file uploads (30 minutes for 1GB files)
+  static const Duration fileUploadTimeout = Duration(minutes: 30);
 
   // GET METHOD
   Future<Response<dynamic>> get(

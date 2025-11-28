@@ -146,7 +146,7 @@ class _WelcomePageState extends State<WelcomePage> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          ContextExtensions(context).pushNamed(AppRoutes.signIn);
+                          context.goNamed(AppRoutes.signIn);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,

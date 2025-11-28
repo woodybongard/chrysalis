@@ -43,47 +43,30 @@ class _AppState extends State<App> {
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) {
-      return ScreenUtilInit(
-        designSize: const Size(1440, 1024), // Web design dimensions
+    final designSize = kIsWeb ? const Size(1440, 1024) : const Size(390, 844);
 
-        builder: (context, child) {
-          return MultiBlocProvider(
-            providers: BlocRegistrar.providers,
-            child: MaterialApp.router(
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.myTheme,
-              supportedLocales: Translator.supportedLanguages,
-              localizationsDelegates: const [
-                Translator.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-              ],
-              routerConfig: appRouter,
-              scaffoldMessengerKey: notificationScaffoldMessengerKey,
-            ),
-          );
-        },
-      );
-    }
-    
-    // For mobile platforms, use the existing setup without ScreenUtil
-    return MultiBlocProvider(
-      providers: BlocRegistrar.providers,
-      child: MaterialApp.router(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.myTheme,
-        supportedLocales: Translator.supportedLanguages,
-        localizationsDelegates: const [
-          Translator.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-        ],
-        routerConfig: appRouter,
-        scaffoldMessengerKey: notificationScaffoldMessengerKey,
-      ),
+    return ScreenUtilInit(
+      designSize: designSize,
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) {
+        return MultiBlocProvider(
+          providers: BlocRegistrar.providers,
+          child: MaterialApp.router(
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.myTheme,
+            supportedLocales: Translator.supportedLanguages,
+            localizationsDelegates: const [
+              Translator.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            routerConfig: appRouter,
+            scaffoldMessengerKey: notificationScaffoldMessengerKey,
+          ),
+        );
+      },
     );
   }
 }

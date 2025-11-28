@@ -12,20 +12,21 @@ class GroupMessageEntity {
     this.fileName,
     this.fileType,
     this.fileSize,
-    this.filePath,
+    this.fileBytes,
     this.filePages,
   });
+
   final bool isGroup;
   final String groupId; // conversationId / groupId
   final String content; // cipher text (base64)
   final String? iv; // AES IV (base64)
   final String
-  encryptedGroupKey; // group sender key encrypted with recipient’s RSA
+  encryptedGroupKey; // group sender key encrypted with recipient's RSA
   final String? fileName;
   final String? type;
   final String? fileType;
   final String? fileSize;
-  final String? filePath;
+  final List<int>? fileBytes;
   final int? filePages;
   final int version;
 
@@ -41,7 +42,7 @@ class GroupMessageEntity {
       'fileType': fileType,
       'fileSize': fileSize,
       'filePages': filePages,
-      'file': filePath,
+      'fileBytes': fileBytes?.length,
       'version': version,
     };
   }

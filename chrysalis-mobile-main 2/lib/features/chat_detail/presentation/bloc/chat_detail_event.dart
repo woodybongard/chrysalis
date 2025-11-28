@@ -6,6 +6,7 @@ class UpdateMessageFilePathEvent extends ChatDetailEvent {
     required this.messageId,
     required this.filePath,
   });
+
   final String messageId;
   final String filePath;
 
@@ -16,6 +17,7 @@ class UpdateMessageFilePathEvent extends ChatDetailEvent {
 // Event for updating message statuses from socket
 class ChatMessagesStatusUpdatedEvent extends ChatDetailEvent {
   const ChatMessagesStatusUpdatedEvent(this.update);
+
   final MessageStatusUpdateEntity update;
 
   @override
@@ -25,14 +27,17 @@ class ChatMessagesStatusUpdatedEvent extends ChatDetailEvent {
 /// Event to retry sending a file message
 class RetrySendFileMessageEvent extends ChatDetailEvent {
   const RetrySendFileMessageEvent(this.message, this.version);
+
   final MessageEntity message;
   final int version;
+
   @override
   List<Object?> get props => [message, version];
 }
 
 abstract class ChatDetailEvent extends Equatable {
   const ChatDetailEvent();
+
   @override
   List<Object?> get props => [];
 }
@@ -45,9 +50,10 @@ class LoadChatMessagesEvent extends ChatDetailEvent {
     this.page = 1,
     this.limit = 20,
   });
+
   final String type;
   final String id;
-  final Key? decryptGroupKey;
+  final encrypt.Key? decryptGroupKey;
   final int page;
   final int limit;
 
@@ -61,6 +67,7 @@ class LoadMoreChatMessagesEvent extends ChatDetailEvent {
 
 class PrependNewMessageEvent extends ChatDetailEvent {
   const PrependNewMessageEvent(this.chatMessages);
+
   final MessageEntity chatMessages;
 
   @override
@@ -77,6 +84,7 @@ class SendMessageEvent extends ChatDetailEvent {
     required this.iv,
     required this.version,
   });
+
   final bool isGroup;
   final String id;
   final String content;
@@ -102,7 +110,7 @@ class SendFileMessageEvent extends ChatDetailEvent {
   const SendFileMessageEvent({
     required this.isGroup,
     required this.groupId,
-    required this.filePath,
+    required this.fileBytes,
     required this.fileName,
     required this.fileType,
     required this.currentUserId,
@@ -112,10 +120,12 @@ class SendFileMessageEvent extends ChatDetailEvent {
     required this.version,
     required this.iv,
     required this.content,
+    this.mimeType,
   });
+
   final bool isGroup;
   final String groupId;
-  final String filePath;
+  final List<int> fileBytes;
   final String fileName;
   final String fileType;
   final String currentUserId;
@@ -125,12 +135,13 @@ class SendFileMessageEvent extends ChatDetailEvent {
   final int version;
   final String iv;
   final String content;
+  final String? mimeType;
 
   @override
   List<Object?> get props => [
     isGroup,
     groupId,
-    filePath,
+    fileBytes,
     content,
     fileName,
     fileType,
@@ -140,12 +151,14 @@ class SendFileMessageEvent extends ChatDetailEvent {
     fileSize,
     filePages,
     version,
+    mimeType,
   ];
 }
 
 /// Event to retry sending an existing message instance (not a new copy)
 class RetrySendMessageEvent extends ChatDetailEvent {
   const RetrySendMessageEvent(this.message, this.version);
+
   final MessageEntity message;
   final int version;
 
@@ -160,6 +173,7 @@ class AddReactionEvent extends ChatDetailEvent {
     required this.chatId,
     required this.isGroup,
   });
+
   final String messageId;
   final String emoji;
   final String chatId;
@@ -175,6 +189,7 @@ class RemoveReactionEvent extends ChatDetailEvent {
     required this.chatId,
     required this.isGroup,
   });
+
   final String messageId;
   final String chatId;
   final bool isGroup;
@@ -184,10 +199,8 @@ class RemoveReactionEvent extends ChatDetailEvent {
 }
 
 class ReactionAddedEvent extends ChatDetailEvent {
-  const ReactionAddedEvent({
-    required this.messageId,
-    required this.reaction,
-  });
+  const ReactionAddedEvent({required this.messageId, required this.reaction});
+
   final String messageId;
   final Map<String, dynamic> reaction;
 
@@ -196,10 +209,8 @@ class ReactionAddedEvent extends ChatDetailEvent {
 }
 
 class ReactionRemovedEvent extends ChatDetailEvent {
-  const ReactionRemovedEvent({
-    required this.messageId,
-    required this.userId,
-  });
+  const ReactionRemovedEvent({required this.messageId, required this.userId});
+
   final String messageId;
   final String userId;
 

@@ -7,8 +7,7 @@ import 'package:chrysalis_mobile/core/local_storage/local_storage.dart';
 import 'package:chrysalis_mobile/core/network/dio_client.dart';
 import 'package:chrysalis_mobile/core/network/interceptors.dart';
 import 'package:chrysalis_mobile/core/route/app_routes.dart';
-import 'package:chrysalis_mobile/core/widgets/modern_snackbar.dart'
-    show showModernSnackbar;
+import 'package:chrysalis_mobile/core/utils/toast_utils.dart';
 import 'package:chrysalis_mobile/features/authentication/data/model/tokens_model.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
@@ -83,7 +82,7 @@ class AuthInterceptor extends Interceptor {
       await LocalStorage().clear();
       final context = navigatorKey.currentContext;
       if (context != null && context.mounted) {
-        showModernSnackbar(context, 'Session expired. Please log in again.');
+        ToastUtils.showError(message: 'Session expired. Please log in again.', context: context);
         context.go(AppRoutes.signIn);
       }
     } catch (_) {

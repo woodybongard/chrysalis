@@ -75,7 +75,7 @@ class LastMessageEntity {
     required this.isSenderYou,
     required this.status,
     required this.sender,
-    required this.iv,
+    this.iv,
     required this.encryptedGroupKey,
     this.decryptedGroupKey,
   });
@@ -85,12 +85,12 @@ class LastMessageEntity {
   final String createdAt;
   final bool isSenderYou;
   final String status;
-  final String iv;
+  final String? iv;
   final String encryptedGroupKey;
   final Key? decryptedGroupKey;
   final SenderEntity sender;
 
-  LastMessageEntity copyWith({Key? decryptedGroupKey}) {
+  LastMessageEntity copyWith({Key? decryptedGroupKey, String? iv}) {
     return LastMessageEntity(
       id: id,
       type: type,
@@ -99,7 +99,7 @@ class LastMessageEntity {
       isSenderYou: isSenderYou,
       status: status,
       sender: sender,
-      iv: iv,
+      iv: iv ?? this.iv,
       encryptedGroupKey: encryptedGroupKey,
       decryptedGroupKey: decryptedGroupKey ?? this.decryptedGroupKey,
     );

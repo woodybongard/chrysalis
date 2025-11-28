@@ -1,7 +1,9 @@
+import 'package:chrysalis_mobile/core/route/app_routes.dart';
 import 'package:chrysalis_mobile/core/theme/app_colors.dart';
 import 'package:chrysalis_mobile/core/theme/app_text_styles.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class TermsSection extends StatelessWidget {
   const TermsSection({super.key});
@@ -34,7 +36,7 @@ class TermsSection extends StatelessWidget {
                 ),
                 recognizer: TapGestureRecognizer()
                   ..onTap = () {
-                    // handle terms tap
+                    context.go(AppRoutes.termsConditions);
                   },
               ),
             ],
@@ -67,7 +69,7 @@ class TermsSection extends StatelessWidget {
                 ),
                 recognizer: TapGestureRecognizer()
                   ..onTap = () {
-                    // handle privacy policy tap
+                    context.go(AppRoutes.privacyPolicy);
                   },
               ),
             ],

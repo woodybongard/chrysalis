@@ -496,11 +496,11 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = NHJJ8KBYM4;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NAME = 1.1.0;
-				FLUTTER_BUILD_NUMBER = 10;
+				FLUTTER_BUILD_NAME = 1.1.1;
+				FLUTTER_BUILD_NUMBER = 11;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Chrysalis Dental Centres";
 				IPHONEOS_DEPLOYMENT_TARGET = 15;
@@ -508,7 +508,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.chrysaliscanada.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -693,11 +693,11 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = NHJJ8KBYM4;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NAME = 1.1.0;
-				FLUTTER_BUILD_NUMBER = 10;
+				FLUTTER_BUILD_NAME = 1.1.1;
+				FLUTTER_BUILD_NUMBER = 11;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Chrysalis Dental Centres";
 				IPHONEOS_DEPLOYMENT_TARGET = 15;
@@ -705,7 +705,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.chrysaliscanada.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -730,11 +730,11 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = NHJJ8KBYM4;
 				ENABLE_BITCODE = NO;
-				FLUTTER_BUILD_NAME = 1.1.0;
-				FLUTTER_BUILD_NUMBER = 10;
+				FLUTTER_BUILD_NAME = 1.1.1;
+				FLUTTER_BUILD_NUMBER = 11;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Chrysalis Dental Centres";
 				IPHONEOS_DEPLOYMENT_TARGET = 15;
@@ -742,7 +742,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.chrysaliscanada.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

@@ -24,5 +24,32 @@
   "login_password_hint": "Enter password",
   "login_button": "Login",
   "welcome_title": "Welcome to Chryalis\nSecure Messaging.",
-  "contact_admin": "Contact admin"
+  "contact_admin": "Contact admin",
+
+  "error_request_timeout": "Request timed out. Please try again.",
+  "error_no_internet": "No internet connection. Please check your network.",
+  "error_unauthorized": "You are not authorized to perform this action.",
+  "error_forbidden": "Access denied. You don't have permission.",
+  "error_not_found": "The requested resource was not found.",
+  "error_server": "Server error. Please try again later.",
+  "error_invalid_credentials": "Invalid username or password.",
+  "error_session_expired": "Your session has expired. Please login again.",
+  "error_validation": "Please check your input and try again.",
+  "error_file_too_large": "File size is too large. Please select a smaller file.",
+  "error_invalid_file_type": "Invalid file type. Please select a supported file format.",
+  "error_general": "Something went wrong. Please try again.",
+  
+  "success_login": "Login successful!",
+  "success_logout": "Logged out successfully.",
+  "success_profile_updated": "Profile updated successfully.",
+  "success_password_changed": "Password changed successfully.",
+  "success_file_uploaded": "File uploaded successfully.",
+  "success_message_sent": "Message sent successfully.",
+  
+  "info_processing": "Processing your request...",
+  "info_uploading": "Uploading file...",
+  "info_downloading": "Downloading file...",
+  
+  "warning_unsaved_changes": "You have unsaved changes. Are you sure you want to leave?",
+  "warning_file_size": "File size is approaching the limit."
 }

@@ -24,5 +24,32 @@
   "login_password_hint": "أدخل كلمة المرور",
   "login_button": "تسجيل الدخول",
   "welcome_title": "مرحبًا بك في كرايالس\nالرسائل الآمنة.",
-  "contact_admin": "تواصل مع المسؤول"
+  "contact_admin": "تواصل مع المسؤول",
+
+  "error_request_timeout": "انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.",
+  "error_no_internet": "لا يوجد اتصال بالإنترنت. يرجى التحقق من شبكتك.",
+  "error_unauthorized": "غير مخول لك تنفيذ هذا الإجراء.",
+  "error_forbidden": "تم رفض الوصول. ليس لديك إذن.",
+  "error_not_found": "المورد المطلوب غير موجود.",
+  "error_server": "خطأ في الخادم. يرجى المحاولة مرة أخرى لاحقاً.",
+  "error_invalid_credentials": "اسم المستخدم أو كلمة المرور غير صحيحة.",
+  "error_session_expired": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.",
+  "error_validation": "يرجى التحقق من المدخلات والمحاولة مرة أخرى.",
+  "error_file_too_large": "حجم الملف كبير جداً. يرجى اختيار ملف أصغر.",
+  "error_invalid_file_type": "نوع الملف غير صحيح. يرجى اختيار تنسيق ملف مدعوم.",
+  "error_general": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+  
+  "success_login": "تم تسجيل الدخول بنجاح!",
+  "success_logout": "تم تسجيل الخروج بنجاح.",
+  "success_profile_updated": "تم تحديث الملف الشخصي بنجاح.",
+  "success_password_changed": "تم تغيير كلمة المرور بنجاح.",
+  "success_file_uploaded": "تم رفع الملف بنجاح.",
+  "success_message_sent": "تم إرسال الرسالة بنجاح.",
+  
+  "info_processing": "جاري معالجة طلبك...",
+  "info_uploading": "جاري رفع الملف...",
+  "info_downloading": "جاري تحميل الملف...",
+  
+  "warning_unsaved_changes": "لديك تغييرات غير محفوظة. هل أنت متأكد من الخروج؟",
+  "warning_file_size": "حجم الملف يقارب الحد المسموح."
 }

@@ -24,6 +24,7 @@ abstract class ChatDetailRemoteService {
 
 class ChatDetailRemoteServiceImpl implements ChatDetailRemoteService {
   ChatDetailRemoteServiceImpl(this.dioClient);
+
   final DioClient dioClient;
 
   @override
@@ -64,6 +65,9 @@ class ChatDetailRemoteServiceImpl implements ChatDetailRemoteService {
       };
       Response<dynamic> response;
       if (entity.type == 'FILE') {
+        // Determine content type based on file extension
+        final contentType = _determineContentType(entity.fileType);
+
         final formData = FormData.fromMap({
           ...body,
           'type': 'FILE',
@@ -71,9 +75,10 @@ class ChatDetailRemoteServiceImpl implements ChatDetailRemoteService {
           'fileType': entity.fileType,
           'fileSize': entity.fileSize,
           'filePages': 1,
-          'file': await MultipartFile.fromFile(
-            entity.filePath!,
+          'file': MultipartFile.fromBytes(
+            entity.fileBytes!,
             filename: entity.fileName,
+            contentType: contentType,
           ),
         });
 
@@ -82,6 +87,9 @@ class ChatDetailRemoteServiceImpl implements ChatDetailRemoteService {
           data: formData,
           options: Options(
             headers: {...headers, 'Content-Type': 'multipart/form-data'},
+            // Extended timeout for large file uploads (30 minutes)
+            sendTimeout: DioClient.fileUploadTimeout,
+            receiveTimeout: DioClient.fileUploadTimeout,
           ),
         );
       } else {
@@ -124,6 +132,45 @@ class ChatDetailRemoteServiceImpl implements ChatDetailRemoteService {
     } on DioException catch (e) {
       handleApiException(e);
       rethrow;
+    }
+  }
+
+  /// Determine content type based on file extension
+  DioMediaType _determineContentType(String? fileExtension) {
+    final extension = fileExtension?.toLowerCase();
+
+    switch (extension) {
+      // Documents
+      case 'pdf':
+        return DioMediaType('application', 'pdf');
+      case 'doc':
+        return DioMediaType('application', 'msword');
+      case 'docx':
+        return DioMediaType(
+          'application',
+          'vnd.openxmlformats-officedocument.wordprocessingml.document',
+        );
+      case 'exe':
+        return DioMediaType('application', 'vnd.microsoft.portable-executable');
+
+      // Medical
+      case 'dcm':
+        return DioMediaType('application', 'dicom');
+
+      // Images
+      case 'jpg':
+      case 'jpeg':
+        return DioMediaType('image', 'jpeg');
+      case 'png':
+        return DioMediaType('image', 'png');
+      case 'gif':
+        return DioMediaType('image', 'gif');
+      case 'heic':
+        return DioMediaType('image', 'heic');
+
+      // Default for unknown file types
+      default:
+        return DioMediaType('application', 'octet-stream');
     }
   }
 }

@@ -1,12 +1,25 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 class ChatFileDatabase {
   factory ChatFileDatabase() => _instance;
-  ChatFileDatabase._internal();
+  ChatFileDatabase._internal() {
+    _initializeDatabaseFactory();
+  }
   static final ChatFileDatabase _instance = ChatFileDatabase._internal();
 
   Database? _db;
+
+  /// Initialize database factory for web platform support
+  void _initializeDatabaseFactory() {
+    if (kIsWeb) {
+      // Initialize SQLite for web platform using the web-specific FFI
+      databaseFactory = databaseFactoryFfiWeb;
+    }
+    // For mobile platforms, sqflite handles initialization automatically
+  }
 
   Future<Database> get database async {
     if (_db != null) return _db!;
@@ -15,24 +28,61 @@ class ChatFileDatabase {
   }
 
   Future<Database> _initDb() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'chat_files.db');
-    return openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fileName TEXT,
-            filePath TEXT,
-            groupId TEXT,
-            conversationId TEXT,
-            createdAt TEXT
-          )
-        ''');
-      },
-    );
+    try {
+      final String path;
+      if (kIsWeb) {
+        // For web, use a simple path
+        path = 'chat_files.db';
+      } else {
+        // For mobile, use standard database directory
+        final dbPath = await getDatabasesPath();
+        path = join(dbPath, 'chat_files.db');
+      }
+      
+      return await openDatabase(
+        path,
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE files (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              fileName TEXT,
+              filePath TEXT,
+              groupId TEXT,
+              conversationId TEXT,
+              createdAt TEXT
+            )
+          ''');
+        },
+      );
+    } catch (e) {
+      // Detailed error logging for debugging
+      debugPrint('❌ Database initialization failed: $e');
+      if (kIsWeb) {
+        debugPrint('🌐 Web platform detected - ensuring web FFI initialization');
+        // Ensure web FFI is initialized
+        databaseFactory = databaseFactoryFfiWeb;
+        
+        // Retry database creation
+        return await openDatabase(
+          'chat_files.db',
+          version: 1,
+          onCreate: (db, version) async {
+            await db.execute('''
+              CREATE TABLE files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fileName TEXT,
+                filePath TEXT,
+                groupId TEXT,
+                conversationId TEXT,
+                createdAt TEXT
+              )
+            ''');
+          },
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<int> insertFile(Map<String, dynamic> data) async {

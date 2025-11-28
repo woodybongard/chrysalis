@@ -1,20 +1,12 @@
-import 'package:flutter/material.dart';
+// DEPRECATED: This file is kept for backward compatibility
+// Use ToastUtils from 'package:chrysalis_mobile/core/utils/toast_utils.dart' instead
 
+import 'package:flutter/material.dart';
+import 'package:chrysalis_mobile/core/utils/toast_utils.dart';
+
+/// @deprecated Use ToastUtils.showError() instead
+@Deprecated('Use ToastUtils.showError() for error messages or ToastUtils.showLocalizedError() for localized errors')
 void showModernSnackbar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(
-        message,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      backgroundColor: Colors.redAccent,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 3),
-    ),
-  );
+  // Fallback to new toast implementation
+  ToastUtils.showError(message: message, context: context);
 }
