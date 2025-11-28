@@ -45,7 +45,12 @@ exports.sendMessage = async (
       prisma.user.findUnique({ where: { id: senderId } }),
       prisma.user.findUnique({
         where: { id: recipientId },
-        select: { id: true, fcmToken: true },
+        select: {
+          id: true,
+          fcmTokens: {
+            select: { token: true },
+          },
+        },
       }),
     ]);
 
@@ -155,7 +160,19 @@ exports.sendMessage = async (
     io.to(`user_${recipientId}`).emit('conv_message', chat);
 
     if (recipient.fcmTokens && recipient.fcmTokens.length > 0) {
-      await sendPushNotification(recipient.fcmTokens, message);
+      const tokens = recipient.fcmTokens.map((t) => t.token).filter(Boolean);
+      if (tokens.length > 0) {
+        await sendPushNotification(
+          tokens,
+          message,
+          null, // group
+          [], // unreadCounts
+          1, // version
+          {}, // envelopeMap
+          new Set(), // liveUserIds - TODO: pass actual live users
+          recipientId, // singleRecipientId for 1:1 flow
+        );
+      }
     }
 
     return message;
@@ -406,17 +423,15 @@ exports.sendMessage = async (
     .filter(Boolean); // remove null/undefined
 
   if (fcmTokens.length > 0) {
-    if (fcmTokens.length > 0) {
-      sendPushNotification(
-        fcmTokens,
-        message,
-        group,
-        unreadCounts,
-        version,
-        envelopeMap,
-        liveUserIds, // pass the set you already built above
-      );
-    }
+    await sendPushNotification(
+      fcmTokens,
+      message,
+      group,
+      unreadCounts,
+      version,
+      envelopeMap,
+      liveUserIds, // pass the set you already built above
+    );
   }
 
   return message;
@@ -854,9 +869,6 @@ exports.getChatListService = async ({ userId, page = 1, limit = 10 }) => {
 
     // --- Format groups ---
     const groupWithUnread = groups.map((g) => {
-      console.log('Checking group:', g.id, userId);
-      console.log('groupKeyEnvelopes raw:', groupKeyEnvelopes);
-
       const envelopesForGroup = groupKeyEnvelopes.filter(
         (key) => key.groupId === g.id && key.userId === userId,
       );

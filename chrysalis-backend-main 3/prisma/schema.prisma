@@ -274,12 +274,14 @@ model FcmToken {
   id         String   @id @default(uuid())
   token      String
   deviceType String?
-  deviceId   String? 
+  deviceId   String?
   createdAt  DateTime @default(now())
 
   // Relation to User
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
+
+  @@index([userId])
 }
 
 model GroupKey {

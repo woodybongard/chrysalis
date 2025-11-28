@@ -148,8 +148,12 @@ async function sendPushNotification(
       return;
     }
 
-    // ------------- Group handling -------------
+    // ------------- Group handling (optimized) -------------
     if (isGroup && group && group.members && group.members.length > 0) {
+      // Collect all push notification promises to send in parallel
+      const pushPromises = [];
+      const memberPushMap = []; // Track which members we're sending to
+
       for (const member of group.members) {
         const uid = member.userId;
 
@@ -187,89 +191,97 @@ async function sendPushNotification(
             route: 'chat_detail',
             unreadCount: String(userUnreadCount),
             version: String(version),
-            groupKey: aesKeyEncB64Url,
+            groupKey: aesKeyEncB64Url || '',
           },
         };
 
-        const response = await admin.messaging().sendEachForMulticast(payload);
+        // Queue the push notification
+        pushPromises.push(admin.messaging().sendEachForMulticast(payload));
+        memberPushMap.push({ uid, tokens: memberTokens });
+      }
 
-        for (let i = 0; i < response.responses.length; i++) {
-          const resp = response.responses[i];
+      // Send all push notifications in parallel
+      const responses = await Promise.all(pushPromises);
+
+      // Collect successfully delivered user IDs
+      const deliveredUserIds = [];
+      for (let i = 0; i < responses.length; i++) {
+        const response = responses[i];
+        const { uid, tokens } = memberPushMap[i];
+
+        for (let j = 0; j < response.responses.length; j++) {
+          const resp = response.responses[j];
           if (resp.success) {
             console.log(`✔️ Delivered push to ${uid}`);
-
-            // Mark deliveredAt
-            await prisma.messageRead.updateMany({
-              where: {
-                messageId: message.id,
-                userId: uid,
-                deliveredAt: null,
-              },
-              data: { deliveredAt: new Date() },
-            });
-
-            // Fetch participants of the group and current message reads
-            const participants = (
-              await prisma.group.findUnique({
-                where: { id: chatId },
-                include: { members: true },
-              })
-            ).members.map((m) => m.userId);
-
-            const dbMessage = await prisma.message.findUnique({
-              where: { id: message.id },
-              include: { reads: true },
-            });
-
-            const allDelivered = participants.every((pid) =>
-              dbMessage.reads.some(
-                (r) => r.userId === pid && r.deliveredAt !== null,
-              ),
-            );
-
-            const io = getIO();
-
-            if (allDelivered) {
-              if (dbMessage.status !== 'READ') {
-                await prisma.message.update({
-                  where: { id: message.id },
-                  data: { status: 'DELIVERED' },
-                });
-
-                io.to(`user_${dbMessage.senderId}`).emit('chatlist_update', {
-                  chatId,
-                  type: 'group',
-                  lastMessageId: message.id,
-                  lastMessageStatus: 'DELIVERED',
-                });
-
-                io.to(`user_${dbMessage.senderId}`).emit(
-                  'messages_update_status',
-                  {
-                    chatId,
-                    type: 'group',
-                    messages: [
-                      {
-                        id: message.id,
-                        status: 'DELIVERED',
-                        senderId: dbMessage.senderId,
-                      },
-                    ],
-                  },
-                );
-              }
-
-              io.to(`chat_${chatId}`).emit('message:all_delivered', {
-                messageId: message.id,
-                status: 'DELIVERED',
-              });
-            }
+            deliveredUserIds.push(uid);
+            break; // At least one token succeeded for this user
           } else {
-            console.error(
-              `❌ Push failed for token ${memberTokens[i]}:`,
-              resp.error,
-            );
+            console.error(`❌ Push failed for token ${tokens[j]}:`, resp.error);
           }
+        }
+      }
+
+      // Batch update all MessageRead records at once
+      if (deliveredUserIds.length > 0) {
+        await prisma.messageRead.updateMany({
+          where: {
+            messageId: message.id,
+            userId: { in: deliveredUserIds },
+            deliveredAt: null,
+          },
+          data: { deliveredAt: new Date() },
+        });
+
+        // Fetch message with reads ONCE after all updates
+        const [groupData, dbMessage] = await Promise.all([
+          prisma.group.findUnique({
+            where: { id: chatId },
+            select: { members: { select: { userId: true } } },
+          }),
+          prisma.message.findUnique({
+            where: { id: message.id },
+            include: { reads: true },
+          }),
+        ]);
+
+        const participants = groupData.members.map((m) => m.userId);
+        const allDelivered = participants.every((pid) =>
+          dbMessage.reads.some(
+            (r) => r.userId === pid && r.deliveredAt !== null,
+          ),
+        );
+
+        if (allDelivered && dbMessage.status !== 'READ') {
+          await prisma.message.update({
+            where: { id: message.id },
+            data: { status: 'DELIVERED' },
+          });
+
+          const io = getIO();
+
+          io.to(`user_${dbMessage.senderId}`).emit('chatlist_update', {
+            chatId,
+            type: 'group',
+            lastMessageId: message.id,
+            lastMessageStatus: 'DELIVERED',
+          });
+
+          io.to(`user_${dbMessage.senderId}`).emit('messages_update_status', {
+            chatId,
+            type: 'group',
+            messages: [
+              {
+                id: message.id,
+                status: 'DELIVERED',
+                senderId: dbMessage.senderId,
+              },
+            ],
+          });
+
+          io.to(`chat_${chatId}`).emit('message:all_delivered', {
+            messageId: message.id,
+            status: 'DELIVERED',
+          });
         }
       }
     }
