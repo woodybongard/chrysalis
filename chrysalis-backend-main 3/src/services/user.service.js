@@ -8,10 +8,10 @@ exports.getlist = async ({ query, page = 1, limit = 10 }) => {
   const skip = (page - 1) * limit;
 
   try {
-    // 1. Fetch users excluding admins
+    // 1. Fetch users excluding superadmin
     const users = await prisma.user.findMany({
       where: {
-        role: { not: 'ADMIN' }, // exclude admins
+        role: { not: 'SUPERADMIN' }, // exclude superadmin
         name: query
           ? {
               contains: query,
@@ -38,7 +38,7 @@ exports.getlist = async ({ query, page = 1, limit = 10 }) => {
     // 2. Count total users (for pagination)
     const total = await prisma.user.count({
       where: {
-        role: { not: 'ADMIN' },
+        role: { not: 'SUPERADMIN' },
         name: query
           ? {
               contains: query,
@@ -142,12 +142,20 @@ exports.updateProfile = async (userId, profileData, avatarFile) => {
       profileData.avatar = null;
     }
 
-    // Only allow firstName, lastName, avatar
+    // Validate role if provided
+    if (profileData.role && !['ADMIN', 'USER'].includes(profileData.role)) {
+      const err = new Error('Role must be either ADMIN or USER');
+      err.status = 400;
+      throw err;
+    }
+
+    // Only allow firstName, lastName, avatar, role
     const allowedFields = {
       firstName: profileData.firstName,
       lastName: profileData.lastName,
       username: profileData.userName,
       avatar: profileData.avatar,
+      ...(profileData.role && { role: profileData.role }),
     };
 
     const updatedUser = await prisma.user.update({
@@ -264,6 +272,156 @@ exports.toggleNotifications = async (userId, isNotification) => {
     console.error('Toggle Notifications Service Error:', error);
     if (error.status) throw error;
     const err = new Error('Failed to update notification preference');
+    err.status = 500;
+    throw err;
+  }
+};
+
+exports.deleteUser = async (userId) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      const err = new Error('User not found');
+      err.status = 404;
+      throw err;
+    }
+
+    // Prevent deleting superadmin
+    if (user.role === 'SUPERADMIN') {
+      const err = new Error('Cannot delete superadmin account');
+      err.status = 403;
+      throw err;
+    }
+
+    // Delete user's avatar from S3 if exists
+    if (user.avatar) {
+      await deleteFile(user.avatar);
+    }
+
+    // Use transaction to delete all related data
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete user's messages file attachments from S3
+      const userMessages = await tx.message.findMany({
+        where: { senderId: userId },
+        select: { id: true, fileUrl: true },
+      });
+      for (const msg of userMessages) {
+        if (msg.fileUrl) {
+          await deleteFile(msg.fileUrl);
+        }
+      }
+
+      // 2. Delete MessageReaction records for all user's sent messages
+      await tx.messageReaction.deleteMany({
+        where: {
+          message: { senderId: userId },
+        },
+      });
+
+      // 3. Delete MessageRead records for all user's sent messages
+      await tx.messageRead.deleteMany({
+        where: {
+          message: { senderId: userId },
+        },
+      });
+
+      // 4. Delete MessageDelivery records for all user's sent messages
+      await tx.messageDelivery.deleteMany({
+        where: {
+          message: { senderId: userId },
+        },
+      });
+
+      // 5. Delete MessageRead records where this user is the reader
+      await tx.messageRead.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 6. Delete MessageDelivery records where this user is the recipient
+      await tx.messageDelivery.deleteMany({
+        where: { recipientId: userId },
+      });
+
+      // 7. Delete MessageReactions by this user
+      await tx.messageReaction.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 8. Delete user's messages
+      await tx.message.deleteMany({
+        where: { senderId: userId },
+      });
+
+      // 9. Delete GroupKeyEnvelopes for this user
+      await tx.groupKeyEnvelope.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 10. Delete GroupMember records
+      await tx.groupMember.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 11. Delete ConversationMember records
+      await tx.conversationMember.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 12. Delete UserKey
+      await tx.userKey.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 13. Delete RecentSearch records
+      await tx.recentSearch.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 14. Delete Device records
+      await tx.device.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 15. Delete RefreshToken records
+      await tx.refreshToken.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 16. Delete PasswordReset records
+      await tx.passwordReset.deleteMany({
+        where: { email: user.email },
+      });
+
+      // 17. Delete FcmToken records
+      await tx.fcmToken.deleteMany({
+        where: { userId: userId },
+      });
+
+      // 18. Set AuditLog references to null
+      await tx.auditLog.updateMany({
+        where: { actorUserId: userId },
+        data: { actorUserId: null },
+      });
+      await tx.auditLog.updateMany({
+        where: { recipientUserId: userId },
+        data: { recipientUserId: null },
+      });
+
+      // 19. Finally delete the user
+      await tx.user.delete({
+        where: { id: userId },
+      });
+    });
+
+    return {
+      success: true,
+      message: 'User deleted successfully',
+      userId: userId,
+    };
+  } catch (error) {
+    console.error('Delete User Service Error:', error.message);
+    if (error.status) throw error;
+    const err = new Error(`Failed to delete user: ${error.message}`);
     err.status = 500;
     throw err;
   }

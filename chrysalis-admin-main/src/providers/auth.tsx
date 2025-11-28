@@ -39,7 +39,13 @@ export const createAuthProvider = (apiUrl: string): AuthProvider => {
         );
 
         const { accessToken, refreshToken, expiresAt } = data?.data?.tokens;
-
+        const user = data?.data?.user;
+        if (user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
+          return {
+            success: false,
+            error: new Error("Unauthorized role"),
+          };
+        }
         localStorage.setItem("accessToken", accessToken);
         localStorage.setItem("refreshToken", refreshToken);
         localStorage.setItem("expiresAt", expiresAt);

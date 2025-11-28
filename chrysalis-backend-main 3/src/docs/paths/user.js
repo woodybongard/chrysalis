@@ -164,6 +164,11 @@
  *               userName:
  *                 type: string
  *                 example: johndoe123
+ *               role:
+ *                 type: string
+ *                 enum: [ADMIN, USER]
+ *                 description: Role of the user
+ *                 example: USER
  *               removeAvatar:
  *                 type: boolean
  *                 example: false
@@ -186,7 +191,7 @@
  *                 data:
  *                   $ref: '#/components/schemas/User'
  *       400:
- *         description: Username already taken or invalid input
+ *         description: Username already taken, invalid role, or invalid input
  *       404:
  *         description: User not found
  *       401:
@@ -424,4 +429,84 @@
  *                 message:
  *                   type: string
  *                   example: Server error
+ */
+
+/**
+ * @swagger
+ * /api/v1/users/{id}:
+ *   delete:
+ *     summary: Delete a user by ID
+ *     description: Permanently deletes a user account. Only accessible by Superadmins. Cannot delete other Superadmin accounts.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The ID of the user to delete
+ *         example: "e8b2b63f-8c14-4c12-8d15-2fbdc118a233"
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User deleted successfully"
+ *                 userId:
+ *                   type: string
+ *                   example: "e8b2b63f-8c14-4c12-8d15-2fbdc118a233"
+ *       400:
+ *         description: User ID is required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User ID is required"
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - insufficient permissions or attempting to delete superadmin
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Cannot delete superadmin account"
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
+ *       500:
+ *         description: Server error
  */

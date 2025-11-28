@@ -10,8 +10,10 @@ import {
   Input,
   Upload,
   App,
+  Popconfirm,
+  Select,
 } from "antd";
-import { UploadOutlined, LockOutlined } from "@ant-design/icons";
+import { UploadOutlined, LockOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { User } from "../../types";
 import dayjs from "dayjs";
 import { useState } from "react";
@@ -82,6 +84,31 @@ export const UserList = () => {
 
   const { mutate: editMutate } = useCustomMutation();
   const { mutate: passwordMutate } = useCustomMutation();
+  const { mutate: deleteMutate } = useCustomMutation();
+
+  // ✅ DELETE USER
+  const handleDeleteUser = (userId: string) => {
+    deleteMutate(
+      {
+        url: `/users/${userId}`,
+        method: "delete",
+        values: {},
+      },
+      {
+        onSuccess: () => {
+          notification.success({ message: "User deleted successfully" });
+          invalidate({ resource: "users", invalidates: ["list"] });
+        },
+        onError: (error: any) => {
+          const errorData = error?.response?.data?.error || error?.response?.data;
+          notification.error({
+            message: "Failed to delete user",
+            description: errorData?.message || error?.message || "An error occurred",
+          });
+        },
+      }
+    );
+  };
 
   // ✅ UPDATE PASSWORD
   const handlePasswordUpdate = async (values: { currentPassword: string; password: string }) => {
@@ -141,6 +168,7 @@ export const UserList = () => {
     const formData = new FormData();
     formData.append("firstName", values.firstName);
     formData.append("lastName", values.lastName);
+    formData.append("role", values.role);
 
     // Handle file upload
     if (editFileList.length > 0 && editFileList[0].originFileObj) {
@@ -222,8 +250,11 @@ export const UserList = () => {
   const openEditModal = (user: User) => {
     setEditingUser(user);
     setIsEditModalVisible(true);
-    editForm.setFieldsValue({ firstName: user.firstName });
-    editForm.setFieldsValue({ lastName: user.lastName });
+    editForm.setFieldsValue({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    });
     if (user.avatar) {
       setEditFileList([
         {
@@ -292,6 +323,16 @@ export const UserList = () => {
           >
             <Input />
           </Form.Item>
+          <Form.Item
+            name="role"
+            label="Role"
+            rules={[{ required: true, message: "Please select a role" }]}
+          >
+            <Select placeholder="Select a role">
+              <Select.Option value="ADMIN">Admin</Select.Option>
+              <Select.Option value="USER">User</Select.Option>
+            </Select>
+          </Form.Item>
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">
@@ -330,6 +371,16 @@ export const UserList = () => {
             rules={[{ required: true }]}
           >
             <Input />
+          </Form.Item>
+          <Form.Item
+            name="role"
+            label="Role"
+            rules={[{ required: true, message: "Please select a role" }]}
+          >
+            <Select placeholder="Select a role">
+              <Select.Option value="ADMIN">Admin</Select.Option>
+              <Select.Option value="USER">User</Select.Option>
+            </Select>
           </Form.Item>
           <Form.Item label="Avatar">
             <Upload
@@ -465,6 +516,13 @@ export const UserList = () => {
         <Table.Column<User> dataIndex="email" title="Email" />
         <Table.Column<User> dataIndex="username" title="UserName" />
         <Table.Column<User>
+          dataIndex="role"
+          title="Role"
+          render={(value: string) => (
+            <Tag color="blue">{value}</Tag>
+          )}
+        />
+        <Table.Column<User>
           dataIndex="isActive"
           title="Status"
           render={(value: boolean) =>
@@ -501,6 +559,20 @@ export const UserList = () => {
                 }}
                 icon={<LockOutlined />}
               />
+              <Popconfirm
+                title="Delete User"
+                description="Are you sure you want to delete this user?"
+                onConfirm={() => handleDeleteUser(record.id)}
+                okText="Yes"
+                cancelText="No"
+                okButtonProps={{ danger: true }}
+              >
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                />
+              </Popconfirm>
             </Space>
           )}
         />

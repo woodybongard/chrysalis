@@ -97,31 +97,37 @@
  *         - email
  *         - username
  *         - password
+ *         - role
  *       properties:
  *         email:
  *           type: string
  *           format: email
- *           description: Admin email address
- *           example: admin@chrysalis.com
+ *           description: User email address
+ *           example: user@chrysalis.com
  *         username:
  *           type: string
  *           minLength: 3
  *           maxLength: 30
- *           description: Admin username
- *           example: chrysalisadmin
+ *           description: Username
+ *           example: chrysalisuser
  *         password:
  *           type: string
  *           minLength: 8
  *           description: Secure password
- *           example: AdminSecurePass123!
+ *           example: SecurePass123!
  *         firstName:
  *           type: string
- *           description: Admin's first name
+ *           description: User's first name
  *           example: Alice
  *         lastName:
  *           type: string
- *           description: Admin's last name
+ *           description: User's last name
  *           example: Smith
+ *         role:
+ *           type: string
+ *           enum: [ADMIN, USER]
+ *           description: Role of the user
+ *           example: USER
  *     CreateSuperAdminRequest:
  *      type: object
  *      required:

@@ -348,18 +348,35 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
- *   put:
- *     summary: Update user profile
- *     description: Update the authenticated user's profile information
+ *   patch:
+ *     summary: Update current user profile (partial update)
+ *     description: Update the authenticated user's profile information. User is identified from the JWT token, no userId required.
  *     tags: [User Profile]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/UpdateProfileRequest'
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *                 description: User's first name
+ *                 example: John
+ *               lastName:
+ *                 type: string
+ *                 description: User's last name
+ *                 example: Doe
+ *               userName:
+ *                 type: string
+ *                 description: User's username
+ *                 example: johndoe123
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Avatar image file
  *     responses:
  *       200:
  *         description: Profile updated successfully
@@ -368,19 +385,22 @@
  *             schema:
  *               type: object
  *               properties:
- *                 success:
+ *                 status:
  *                   type: boolean
  *                   example: true
  *                 message:
  *                   type: string
  *                   example: Profile updated successfully
  *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       $ref: '#/components/schemas/User'
+ *                   $ref: '#/components/schemas/User'
  *       400:
- *         description: Validation error
+ *         description: Username already taken or invalid input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: User not found
  *         content:
  *           application/json:
  *             schema:

@@ -13,6 +13,8 @@ const {
   revokeAllRefreshTokens,
 } = require('../utils/jwt');
 const { authenticate } = require('../middleware/auth');
+const upload = require('../middleware/upload');
+const userController = require('../controller/user.controller');
 
 const router = express.Router();
 
@@ -173,12 +175,14 @@ router.post(
     body('email').isEmail().normalizeEmail(),
     body('username').isLength({ min: 3 }),
     body('password').isLength({ min: 8 }),
-    // body('role').isIn(['CHRYSALIS_ADMIN', 'CHRYSALIS_SUPERADMIN']),
+    body('role')
+      .isIn(['ADMIN', 'USER'])
+      .withMessage('Role must be either ADMIN or USER'),
   ],
   handleValidationErrors,
   async (req, res, next) => {
     try {
-      const { email, username, password, firstName, lastName } = req.body;
+      const { email, username, password, firstName, lastName, role } = req.body;
 
       console.log(req.body);
 
@@ -212,7 +216,7 @@ router.post(
           password: hashedPassword,
           firstName,
           lastName,
-          role: 'ADMIN',
+          role: role || 'USER',
         },
         select: {
           id: true,
@@ -225,7 +229,7 @@ router.post(
 
       res.status(201).json({
         success: true,
-        message: `Admin account created successfully`,
+        message: `${role || 'USER'} account created successfully`,
         data: { user },
       });
     } catch (error) {
@@ -645,6 +649,14 @@ router.put(
       next(error);
     }
   },
+);
+
+// Update current user profile (PATCH with file upload)
+router.patch(
+  '/me',
+  authenticate,
+  upload.single('file'),
+  userController.updateProfile,
 );
 
 // Change password

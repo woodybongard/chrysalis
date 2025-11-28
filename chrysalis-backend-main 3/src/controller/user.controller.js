@@ -148,3 +148,29 @@ exports.toggleNotifications = async (req, res, next) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+    }
+
+    const result = await userService.deleteUser(userId);
+
+    res.status(200).json(result);
+  } catch (err) {
+    console.error(err);
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+      });
+    }
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
