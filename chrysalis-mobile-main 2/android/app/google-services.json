@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "219263940122",
+    "project_id": "woody-56b3f",
+    "storage_bucket": "woody-56b3f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:219263940122:android:3ce282523a44269c4e03a3",
+        "android_client_info": {
+          "package_name": "com.chrysaliscanada.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcq4JC6vur82W0z6pmI913AZtGBSXd_fY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:219263940122:android:53bbe1b5247d1c854e03a3",
+        "android_client_info": {
+          "package_name": "com.tecaudex.woody"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcq4JC6vur82W0z6pmI913AZtGBSXd_fY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

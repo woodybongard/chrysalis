@@ -1,0 +1,58 @@
+{
+  "name": "chrysalis",
+  "version": "1.0.0",
+  "description": "A medical social media platform",
+  "main": "src/server.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:reset": "prisma migrate reset",
+    "prisma:studio": "prisma studio",
+    "prisma:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.7.1",
+    "@privacyresearch/libsignal-protocol-typescript": "^0.0.16",
+    "aws-sdk": "^2.1692.0",
+    "axios": "^1.11.0",
+    "bcryptjs": "^2.4.3",
+    "clamscan": "^2.4.0",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "file-type": "^21.0.0",
+    "firebase-admin": "^13.4.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "libsignal-protocol-typescript": "^0.0.18",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "officeparser": "^5.2.0",
+    "pdf-parse": "^1.1.1",
+    "socket.io": "^4.8.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2",
+    "prisma": "^5.7.1",
+    "supertest": "^6.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Arham Anwar",
+  "license": "ISC"
+}
