@@ -1,5 +1,6 @@
 const { Server } = require('socket.io');
 const prisma = require('./config/database');
+const { sendReactionPushNotification } = require('./utils/pushNotification');
 
 let io;
 
@@ -164,32 +165,97 @@ const initSocket = (server) => {
       });
     });
 
-    socket.on('message:delivered', async ({ messageId, userId }) => {
-      // Mark delivered
-      await prisma.messageRead.updateMany({
-        where: { userId, messageId, deliveredAt: null },
-        data: { deliveredAt: new Date() },
-      });
+    socket.on('message:delivered', async ({ messageId, userId, deviceId }) => {
+      try {
+        if (!messageId || !userId) {
+          console.error('❌ message:delivered missing params', { messageId, userId });
+          return;
+        }
 
-      // Check if all group members have it
-      const deliveredCount = await prisma.messageRead.count({
-        where: { messageId, deliveredAt: { not: null } },
-      });
+        const now = new Date();
 
-      const totalCount = await prisma.messageRead.count({
-        where: { messageId },
-      });
+        // Mark delivered for this user in MessageRead
+        await prisma.messageRead.updateMany({
+          where: { userId, messageId, deliveredAt: null },
+          data: { deliveredAt: now },
+        });
 
-      if (deliveredCount === totalCount) {
-        // Emit to all group members that it’s fully delivered
+        // Update MessageDelivery record
+        await prisma.messageDelivery.updateMany({
+          where: { messageId, recipientId: userId },
+          data: {
+            status: 'DELIVERED',
+            lastChannel: 'SOCKET',
+            deliveredAt: now,
+            lastDeviceId: deviceId || null,
+          },
+        });
+
+        console.log(`✅ Marked message ${messageId} as delivered to user ${userId}`);
+
+        // Get the message with its reads to check if all delivered
         const message = await prisma.message.findUnique({
           where: { id: messageId },
-          select: { chatId: true },
+          include: { reads: true },
         });
 
-        io.to(`chat_${message.chatId}`).emit('message:all_delivered', {
-          messageId,
-        });
+        if (!message) {
+          console.warn(`⚠️ Message ${messageId} not found`);
+          return;
+        }
+
+        const chatId = message.conversationId || message.groupId;
+        const type = message.conversationId ? 'conversation' : 'group';
+
+        // Get all participants
+        const participants = type === 'conversation'
+          ? (await prisma.conversation.findUnique({
+              where: { id: chatId },
+              include: { members: true },
+            }))?.members.map((m) => m.userId) || []
+          : (await prisma.group.findUnique({
+              where: { id: chatId },
+              include: { members: true },
+            }))?.members.map((m) => m.userId) || [];
+
+        // Check if ALL participants have deliveredAt set
+        const allDelivered = participants.every((pid) =>
+          message.reads.some((r) => r.userId === pid && r.deliveredAt !== null)
+        );
+
+        if (allDelivered && message.status === 'SENT') {
+          console.log(`📬 Message ${messageId} is now fully DELIVERED`);
+
+          // Update message status to DELIVERED
+          await prisma.message.update({
+            where: { id: messageId },
+            data: { status: 'DELIVERED' },
+          });
+
+          // Notify sender's chat list
+          io.to(`user_${message.senderId}`).emit('chatlist_update', {
+            chatId,
+            type,
+            lastMessageId: messageId,
+            lastMessageStatus: 'DELIVERED',
+          });
+
+          // Notify sender if viewing messages
+          io.to(`user_${message.senderId}`).emit('messages_update_status', {
+            chatId,
+            type,
+            messages: [{ id: messageId, status: 'DELIVERED', senderId: message.senderId }],
+          });
+
+          // Broadcast to chat room
+          const roomName = type === 'group' ? `group_${chatId}` : chatId;
+          io.to(roomName).emit('message:all_delivered', {
+            messageId,
+            status: 'DELIVERED',
+          });
+        }
+      } catch (err) {
+        console.error('❌ Error in message:delivered handler:', err);
       }
     });
 
@@ -205,7 +271,9 @@ const initSocket = (server) => {
           return;
         }
 
-        // ✅ Step 1: Update read receipts for this user
+        const now = new Date();
+
+        // ✅ Step 1: Update read receipts for this user in MessageRead
         const result = await prisma.messageRead.upsert({
           where: {
             userId_messageId: {
@@ -213,9 +281,26 @@ const initSocket = (server) => {
               messageId,
             },
           },
-          update: { readAt: new Date() },
-          create: { userId, messageId, readAt: new Date() },
+          update: { readAt: now },
+          create: { userId, messageId, readAt: now },
         });
+
+        // ✅ Step 1b: Update MessageDelivery record
+        const existingDelivery = await prisma.messageDelivery.findUnique({
+          where: { messageId_recipientId: { messageId, recipientId: userId } },
+        });
+
+        if (existingDelivery) {
+          await prisma.messageDelivery.update({
+            where: { messageId_recipientId: { messageId, recipientId: userId } },
+            data: {
+              status: 'READ',
+              firstReadAt: existingDelivery.firstReadAt || now,
+              lastReadAt: now,
+              readCount: { increment: 1 },
+            },
+          });
+        }
 
         console.log(
           `✅ Marked message ${messageId} as read by user ${userId}`,
@@ -254,9 +339,8 @@ const initSocket = (server) => {
           message.reads.some((r) => r.userId === pid && r.readAt !== null),
         );
 
-        console.log('allRead status:', allRead);
-
-        if (allRead) {
+        // Only update and notify if message is not already READ
+        if (allRead && message.status !== 'READ') {
           console.log(`📩 Message ${messageId} is now fully READ`);
 
           // Update status in DB
@@ -265,9 +349,7 @@ const initSocket = (server) => {
             data: { status: 'READ' },
           });
 
-          console.log('message===>', message);
-
-          // ✅ Step 5a: Notify sender’s chatlist
+          // ✅ Step 5a: Notify sender's chatlist
           io.to(`user_${message.senderId}`).emit('chatlist_update', {
             chatId,
             type,
@@ -282,16 +364,6 @@ const initSocket = (server) => {
               { id: messageId, status: 'READ', senderId: message.senderId },
             ],
           });
-
-          // ✅ Step 5b: If sender is in this chat, notify in real-time
-          // const senderRoom = io.sockets.adapter.rooms.get(
-          //   `user_${message.senderId}`,
-          // );
-          // if (senderRoom) {
-          //   for (const socketId of senderRoom) {
-          //     const senderSocket = io.sockets.sockets.get(socketId);
-          //   }
-          // }
         }
       } catch (err) {
         console.error('❌ Error in mark_read handler:', err);
@@ -329,6 +401,11 @@ const initSocket = (server) => {
                 firstName: true,
                 lastName: true,
                 avatar: true,
+              },
+            },
+            message: {
+              select: {
+                senderId: true,
               },
             },
           },
@@ -372,6 +449,29 @@ const initSocket = (server) => {
               user: reaction.user,
             },
           });
+        });
+
+        // Send push notification to message owner
+        let chatName = '';
+        if (isGroup) {
+          const group = await prisma.group.findUnique({
+            where: { id: chatId },
+            select: { name: true },
+          });
+          chatName = group?.name || 'Group';
+        }
+
+        const reactorName = `${reaction.user.firstName || ''} ${reaction.user.lastName || ''}`.trim();
+
+        // Send push notification (runs async, no await needed)
+        sendReactionPushNotification({
+          messageOwnerId: reaction.message.senderId,
+          reactorId: userId,
+          reactorName: reactorName || 'Someone',
+          emoji,
+          chatId,
+          isGroup,
+          chatName,
         });
 
       } catch (err) {

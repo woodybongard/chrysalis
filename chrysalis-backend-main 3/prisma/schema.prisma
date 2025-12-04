@@ -104,7 +104,8 @@ model User {
   auditRecipientEvents AuditLog[] @relation("AuditRecipient")
   fcmTokens            FcmToken[]
   groupKeyEnvelopes    GroupKeyEnvelope[]
-  recentSearches       RecentSearch[]
+  recentSearches       RecentSearch[]    @relation("RecentSearchOwner")
+  searchedByUsers      RecentSearch[]    @relation("RecentSearchTarget")
   reactions            MessageReaction[] @relation("UserReactions")
 }
 
@@ -156,7 +157,8 @@ model Conversation {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  auditEvents AuditLog[] @relation("AuditConversation")
+  auditEvents    AuditLog[]     @relation("AuditConversation")
+  recentSearches RecentSearch[]
 }
 
 model ConversationMember {
@@ -376,17 +378,25 @@ model AuditLog {
 
 
 model RecentSearch {
-  id        String   @id @default(uuid())
-  userId    String
-  groupId   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(uuid())
+  userId         String
+  groupId        String?
+  conversationId String?
+  searchedUserId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relations
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user         User          @relation("RecentSearchOwner", fields: [userId], references: [id], onDelete: Cascade)
+  group        Group?        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  searchedUser User?         @relation("RecentSearchTarget", fields: [searchedUserId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, groupId]) // prevent duplicates (1 record per user+group)
+  @@unique([userId, groupId])
+  @@unique([userId, conversationId])
+  @@unique([userId, searchedUserId])
   @@index([userId])
   @@index([groupId])
+  @@index([conversationId])
+  @@index([searchedUserId])
 }

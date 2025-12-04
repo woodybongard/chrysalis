@@ -45,8 +45,18 @@ exports.uploadKeyBundle = async ({
     const aesKeyEncB64Url = encryptGskForUser(gskBuffer, publicKeyPem);
     // const newVersion = (group.version || 0) + 1;
 
-    await prisma.groupKeyEnvelope.create({
-      data: {
+    await prisma.groupKeyEnvelope.upsert({
+      where: {
+        groupId_userId_version: {
+          groupId: group.id,
+          userId: userId,
+          version: group.version,
+        },
+      },
+      update: {
+        aesKeyEncB64Url,
+      },
+      create: {
         groupId: group.id,
         userId: userId,
         aesKeyEncB64Url,

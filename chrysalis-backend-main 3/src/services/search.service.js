@@ -1,71 +1,5 @@
 const prisma = require('../config/database');
 
-// exports.search = async (userId, { query, page = 1, limit = 10 }) => {
-//   if (!query) {
-//     const error = new Error('query is missing');
-//     error.status = 400;
-//     throw error;
-//   }
-
-//   page = parseInt(page, 10);
-//   limit = parseInt(limit, 10);
-//   const skip = (page - 1) * limit;
-
-//   try {
-//     const [groups, total] = await Promise.all([
-//       prisma.group.findMany({
-//         where: {
-//           name: {
-//             contains: query,
-//             mode: 'insensitive',
-//           },
-//           members: {
-//             some: { userId },
-//           },
-//         },
-//         select: {
-//           id: true,
-//           name: true,
-//           profileImg: true,
-//           createdAt: true,
-//           updatedAt: true,
-//         },
-//         orderBy: { createdAt: 'desc' },
-//         skip,
-//         take: limit,
-//       }),
-//       prisma.group.count({
-//         where: {
-//           name: {
-//             contains: query,
-//             mode: 'insensitive',
-//           },
-//           members: {
-//             some: { userId },
-//           },
-//         },
-//       }),
-//     ]);
-
-//     return {
-//       status: true,
-//       message: 'Groups fetched successfully',
-//       pagination: {
-//         total,
-//         page,
-//         limit,
-//         totalPages: Math.ceil(total / limit),
-//       },
-//       data: groups,
-//     };
-//   } catch (error) {
-//     console.error('Group search error:', error);
-//     const err = new Error('Failed to search groups');
-//     err.status = 500;
-//     throw err;
-//   }
-// };
-
 exports.search = async (userId, { query, page = 1, limit = 10 }) => {
   if (!query) {
     const error = new Error('query is missing');
@@ -75,48 +9,129 @@ exports.search = async (userId, { query, page = 1, limit = 10 }) => {
 
   page = parseInt(page, 10);
   limit = parseInt(limit, 10);
-  const skip = (page - 1) * limit;
 
   try {
-    // 1. Fetch groups matching search
-    const groups = await prisma.group.findMany({
-      where: {
-        name: {
-          contains: query,
-          mode: 'insensitive',
+    // 1. Get all group IDs the user is a member of (for user search scope)
+    const userGroupMemberships = await prisma.groupMember.findMany({
+      where: { userId },
+      select: { groupId: true },
+    });
+    const userGroupIds = userGroupMemberships.map((m) => m.groupId);
+
+    // 2. Fetch groups, conversations, and users in parallel
+    const [groups, conversations, users] = await Promise.all([
+      // Groups matching search query
+      prisma.group.findMany({
+        where: {
+          name: { contains: query, mode: 'insensitive' },
+          members: { some: { userId } },
         },
-        members: { some: { userId } },
-      },
-      select: {
-        id: true,
-        name: true,
-        profileImg: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
+        select: {
+          id: true,
+          name: true,
+          profileImg: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+
+      // 1:1 Conversations where the other member's name matches
+      prisma.conversation.findMany({
+        where: {
+          isGroup: false,
+          members: { some: { userId } },
+        },
+        include: {
+          members: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+
+      // Users from shared groups matching the search query
+      prisma.user.findMany({
+        where: {
+          id: { not: userId }, // Exclude self
+          groupMemberships: {
+            some: { groupId: { in: userGroupIds } },
+          },
+          OR: [
+            { firstName: { contains: query, mode: 'insensitive' } },
+            { lastName: { contains: query, mode: 'insensitive' } },
+            { username: { contains: query, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          avatar: true,
+          username: true,
+          keys: { select: { publicKey: true } },
+        },
+        take: limit,
+      }),
+    ]);
+
+    // Filter conversations where the OTHER member's name matches the query
+    const filteredConversations = conversations.filter((conv) => {
+      const otherMember = conv.members.find((m) => m.userId !== userId);
+      if (!otherMember) return false;
+      const fullName =
+        `${otherMember.user.firstName || ''} ${otherMember.user.lastName || ''}`.toLowerCase();
+      const username = (otherMember.user.username || '').toLowerCase();
+      const q = query.toLowerCase();
+      return fullName.includes(q) || username.includes(q);
     });
 
     const groupIds = groups.map((g) => g.id);
+    const convIds = filteredConversations.map((c) => c.id);
 
-    // 2. Fetch group key envelopes for the user
-    const groupKeyEnvelopes = await prisma.groupKeyEnvelope.findMany({
-      where: { userId, groupId: { in: groupIds } },
-      select: { groupId: true, aesKeyEncB64Url: true, version: true },
-    });
+    // 3. Fetch group key envelopes, last messages, and unread counts
+    const [groupKeyEnvelopes, groupLastMessages, convLastMessages] =
+      await Promise.all([
+        prisma.groupKeyEnvelope.findMany({
+          where: { userId, groupId: { in: groupIds } },
+          select: { groupId: true, aesKeyEncB64Url: true, version: true },
+        }),
+        groupIds.length > 0
+          ? prisma.message.findMany({
+              where: { groupId: { in: groupIds } },
+              orderBy: { createdAt: 'desc' },
+              distinct: ['groupId'],
+              include: {
+                sender: {
+                  select: { id: true, firstName: true, lastName: true },
+                },
+              },
+            })
+          : [],
+        convIds.length > 0
+          ? prisma.message.findMany({
+              where: { conversationId: { in: convIds } },
+              orderBy: { createdAt: 'desc' },
+              distinct: ['conversationId'],
+              include: {
+                sender: {
+                  select: { id: true, firstName: true, lastName: true },
+                },
+              },
+            })
+          : [],
+      ]);
 
-    // 3. Fetch last messages for these groups
-    const lastMessages = await prisma.message.findMany({
-      where: { groupId: { in: groupIds } },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['groupId'],
-      include: {
-        sender: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
-
-    const lastMsgMap = Object.fromEntries(
-      lastMessages.map((m) => [
+    // Build last message maps
+    const groupLastMsgMap = Object.fromEntries(
+      groupLastMessages.map((m) => [
         m.groupId,
         {
           id: m.id,
@@ -127,9 +142,7 @@ exports.search = async (userId, { query, page = 1, limit = 10 }) => {
           status: m.status || 'SENT',
           sender: {
             id: m.sender.id,
-            name: `${m.sender.firstName || ''} ${
-              m.sender.lastName || ''
-            }`.trim(),
+            name: `${m.sender.firstName || ''} ${m.sender.lastName || ''}`.trim(),
           },
           iv: m?.iv || null,
           aesKeyEncB64Url: m?.aesKeyEncB64Url || null,
@@ -137,22 +150,59 @@ exports.search = async (userId, { query, page = 1, limit = 10 }) => {
       ]),
     );
 
-    // 4. Fetch unread counts
-    const unreadByGroup = await prisma.message.groupBy({
-      by: ['groupId'],
-      where: {
-        groupId: { in: groupIds },
-        reads: { some: { userId, readAt: null } },
-      },
-      _count: { id: true },
-    });
-
-    const unreadMap = Object.fromEntries(
-      unreadByGroup.map((row) => [row.groupId, row._count.id]),
+    const convLastMsgMap = Object.fromEntries(
+      convLastMessages.map((m) => [
+        m.conversationId,
+        {
+          id: m.id,
+          type: m.type,
+          content: m.encryptedText,
+          createdAt: m.createdAt,
+          isSenderYou: m.senderId === userId,
+          status: m.status || 'SENT',
+          sender: {
+            id: m.sender.id,
+            name: `${m.sender.firstName || ''} ${m.sender.lastName || ''}`.trim(),
+          },
+          iv: m?.iv || null,
+          aesKeyEncB64Url: m?.aesKeyEncB64Url || null,
+        },
+      ]),
     );
 
-    // 5. Map into unified response format
-    const groupWithUnread = groups.map((g) => {
+    // Fetch unread counts
+    const [unreadByGroup, unreadByConv] = await Promise.all([
+      groupIds.length > 0
+        ? prisma.message.groupBy({
+            by: ['groupId'],
+            where: {
+              groupId: { in: groupIds },
+              reads: { some: { userId, readAt: null } },
+            },
+            _count: { id: true },
+          })
+        : [],
+      convIds.length > 0
+        ? prisma.message.groupBy({
+            by: ['conversationId'],
+            where: {
+              conversationId: { in: convIds },
+              reads: { some: { userId, readAt: null } },
+            },
+            _count: { id: true },
+          })
+        : [],
+    ]);
+
+    const groupUnreadMap = Object.fromEntries(
+      unreadByGroup.map((row) => [row.groupId, row._count.id]),
+    );
+    const convUnreadMap = Object.fromEntries(
+      unreadByConv.map((row) => [row.conversationId, row._count.id]),
+    );
+
+    // 4. Format results
+    const groupResults = groups.map((g) => {
       const groupKey = groupKeyEnvelopes.find((key) => key.groupId === g.id);
       return {
         type: 'group',
@@ -160,37 +210,93 @@ exports.search = async (userId, { query, page = 1, limit = 10 }) => {
         name: g.name,
         avatar: g.profileImg || null,
         isGroup: true,
-        lastMessage: lastMsgMap[g.id] || null,
-        unreadCount: unreadMap[g.id] || 0,
+        lastMessage: groupLastMsgMap[g.id] || null,
+        unreadCount: groupUnreadMap[g.id] || 0,
         groupKey: groupKey?.aesKeyEncB64Url || null,
         version: groupKey?.version || null,
       };
     });
 
+    const conversationResults = filteredConversations.map((conv) => {
+      const otherMember = conv.members.find((m) => m.userId !== userId);
+      return {
+        type: 'conversation',
+        id: conv.id,
+        name: `${otherMember?.user.firstName || ''} ${otherMember?.user.lastName || ''}`.trim(),
+        avatar: otherMember?.user.avatar || null,
+        isGroup: false,
+        otherUserId: otherMember?.user.id || null,
+        lastMessage: convLastMsgMap[conv.id] || null,
+        unreadCount: convUnreadMap[conv.id] || 0,
+        convoKeyEnc: conv.convoKeyEnc || null,
+      };
+    });
+
+    const userResults = users.map((u) => ({
+      type: 'user',
+      id: u.id,
+      name: `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+      username: u.username || null,
+      avatar: u.avatar || null,
+      publicKey: u.keys?.publicKey || null,
+    }));
+
+    // Combine and paginate
+    const allResults = [...groupResults, ...conversationResults, ...userResults];
+    const skip = (page - 1) * limit;
+    const paginatedResults = allResults.slice(skip, skip + limit);
+
     return {
       status: true,
-      message: 'Groups fetched successfully',
-      data: groupWithUnread,
+      message: 'Search completed successfully',
+      data: paginatedResults,
       pagination: {
-        total: groupWithUnread.length,
+        total: allResults.length,
         page,
         limit,
-        totalPages: Math.ceil(groupWithUnread.length / limit),
+        totalPages: Math.ceil(allResults.length / limit),
       },
     };
   } catch (error) {
-    console.error('Group search error:', error);
-    const err = new Error('Failed to search groups');
+    console.error('Search error:', error);
+    const err = new Error('Failed to search');
     err.status = 500;
     throw err;
   }
 };
 
-exports.addRecentSearch = async (userId, groupId) => {
+exports.addRecentSearch = async (
+  userId,
+  { groupId, conversationId, searchedUserId },
+) => {
   try {
-    // Check if recent search already exists for this user + group
+    // Validate that exactly one target is provided
+    const targets = [groupId, conversationId, searchedUserId].filter(Boolean);
+    if (targets.length !== 1) {
+      const error = new Error(
+        'Exactly one of groupId, conversationId, or searchedUserId is required',
+      );
+      error.status = 400;
+      throw error;
+    }
+
+    let whereClause;
+    let createData = { userId };
+
+    if (groupId) {
+      whereClause = { userId, groupId };
+      createData.groupId = groupId;
+    } else if (conversationId) {
+      whereClause = { userId, conversationId };
+      createData.conversationId = conversationId;
+    } else {
+      whereClause = { userId, searchedUserId };
+      createData.searchedUserId = searchedUserId;
+    }
+
+    // Check if recent search already exists
     const existing = await prisma.recentSearch.findFirst({
-      where: { userId, groupId },
+      where: whereClause,
     });
 
     let recentSearch;
@@ -203,7 +309,7 @@ exports.addRecentSearch = async (userId, groupId) => {
     } else {
       // Create a new entry
       recentSearch = await prisma.recentSearch.create({
-        data: { userId, groupId },
+        data: createData,
       });
     }
 
@@ -220,44 +326,89 @@ exports.addRecentSearch = async (userId, groupId) => {
 
 exports.getRecentSearches = async (userId, limit = 10) => {
   try {
-    // 1. Fetch recent searches with group reference
+    // 1. Fetch recent searches with all references
     const recentSearches = await prisma.recentSearch.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
       take: limit,
       include: {
         group: {
+          select: { id: true, name: true, profileImg: true },
+        },
+        conversation: {
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    avatar: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        searchedUser: {
           select: {
             id: true,
-            name: true,
-            profileImg: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+            username: true,
+            keys: { select: { publicKey: true } },
           },
         },
       },
     });
 
-    const groups = recentSearches.map((rs) => rs.group).filter(Boolean); // exclude nulls if any
+    // Separate by type
+    const groupSearches = recentSearches.filter((rs) => rs.group);
+    const convSearches = recentSearches.filter((rs) => rs.conversation);
 
-    const groupIds = groups.map((g) => g.id);
+    const groupIds = groupSearches.map((rs) => rs.group.id);
+    const convIds = convSearches.map((rs) => rs.conversation.id);
 
-    // 2. Fetch group keys
-    const groupKeyEnvelopes = await prisma.groupKeyEnvelope.findMany({
-      where: { userId, groupId: { in: groupIds } },
-      select: { groupId: true, aesKeyEncB64Url: true, version: true },
-    });
+    // 2. Fetch group keys, last messages, and unread counts in parallel
+    const [groupKeyEnvelopes, groupLastMessages, convLastMessages] =
+      await Promise.all([
+        groupIds.length > 0
+          ? prisma.groupKeyEnvelope.findMany({
+              where: { userId, groupId: { in: groupIds } },
+              select: { groupId: true, aesKeyEncB64Url: true, version: true },
+            })
+          : [],
+        groupIds.length > 0
+          ? prisma.message.findMany({
+              where: { groupId: { in: groupIds } },
+              orderBy: { createdAt: 'desc' },
+              distinct: ['groupId'],
+              include: {
+                sender: {
+                  select: { id: true, firstName: true, lastName: true },
+                },
+              },
+            })
+          : [],
+        convIds.length > 0
+          ? prisma.message.findMany({
+              where: { conversationId: { in: convIds } },
+              orderBy: { createdAt: 'desc' },
+              distinct: ['conversationId'],
+              include: {
+                sender: {
+                  select: { id: true, firstName: true, lastName: true },
+                },
+              },
+            })
+          : [],
+      ]);
 
-    // 3. Fetch last messages
-    const lastMessages = await prisma.message.findMany({
-      where: { groupId: { in: groupIds } },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['groupId'],
-      include: {
-        sender: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
-
-    const lastMsgMap = Object.fromEntries(
-      lastMessages.map((m) => [
+    // Build last message maps
+    const groupLastMsgMap = Object.fromEntries(
+      groupLastMessages.map((m) => [
         m.groupId,
         {
           id: m.id,
@@ -268,9 +419,7 @@ exports.getRecentSearches = async (userId, limit = 10) => {
           status: m.status || 'SENT',
           sender: {
             id: m.sender.id,
-            name: `${m.sender.firstName || ''} ${
-              m.sender.lastName || ''
-            }`.trim(),
+            name: `${m.sender.firstName || ''} ${m.sender.lastName || ''}`.trim(),
           },
           iv: m?.iv || null,
           aesKeyEncB64Url: m?.aesKeyEncB64Url || null,
@@ -278,44 +427,109 @@ exports.getRecentSearches = async (userId, limit = 10) => {
       ]),
     );
 
-    // 4. Fetch unread counts
-    const unreadByGroup = await prisma.message.groupBy({
-      by: ['groupId'],
-      where: {
-        groupId: { in: groupIds },
-        reads: { some: { userId, readAt: null } },
-      },
-      _count: { id: true },
-    });
-
-    const unreadMap = Object.fromEntries(
-      unreadByGroup.map((row) => [row.groupId, row._count.id]),
+    const convLastMsgMap = Object.fromEntries(
+      convLastMessages.map((m) => [
+        m.conversationId,
+        {
+          id: m.id,
+          type: m.type,
+          content: m.encryptedText,
+          createdAt: m.createdAt,
+          isSenderYou: m.senderId === userId,
+          status: m.status || 'SENT',
+          sender: {
+            id: m.sender.id,
+            name: `${m.sender.firstName || ''} ${m.sender.lastName || ''}`.trim(),
+          },
+          iv: m?.iv || null,
+          aesKeyEncB64Url: m?.aesKeyEncB64Url || null,
+        },
+      ]),
     );
 
-    // 5. Format response
-    const groupWithUnread = groups.map((g) => {
-      const groupKey = groupKeyEnvelopes.find((key) => key.groupId === g.id);
-      return {
-        type: 'group',
-        id: g.id,
-        name: g.name,
-        avatar: g.profileImg || null,
-        isGroup: true,
-        lastMessage: lastMsgMap[g.id] || null,
-        unreadCount: unreadMap[g.id] || 0,
-        groupKey: groupKey?.aesKeyEncB64Url || null,
-        version: groupKey?.version || null,
-      };
-    });
+    // Fetch unread counts
+    const [unreadByGroup, unreadByConv] = await Promise.all([
+      groupIds.length > 0
+        ? prisma.message.groupBy({
+            by: ['groupId'],
+            where: {
+              groupId: { in: groupIds },
+              reads: { some: { userId, readAt: null } },
+            },
+            _count: { id: true },
+          })
+        : [],
+      convIds.length > 0
+        ? prisma.message.groupBy({
+            by: ['conversationId'],
+            where: {
+              conversationId: { in: convIds },
+              reads: { some: { userId, readAt: null } },
+            },
+            _count: { id: true },
+          })
+        : [],
+    ]);
+
+    const groupUnreadMap = Object.fromEntries(
+      unreadByGroup.map((row) => [row.groupId, row._count.id]),
+    );
+    const convUnreadMap = Object.fromEntries(
+      unreadByConv.map((row) => [row.conversationId, row._count.id]),
+    );
+
+    // 3. Format results preserving the original order
+    const results = recentSearches.map((rs) => {
+      if (rs.group) {
+        const g = rs.group;
+        const groupKey = groupKeyEnvelopes.find((key) => key.groupId === g.id);
+        return {
+          type: 'group',
+          id: g.id,
+          name: g.name,
+          avatar: g.profileImg || null,
+          isGroup: true,
+          lastMessage: groupLastMsgMap[g.id] || null,
+          unreadCount: groupUnreadMap[g.id] || 0,
+          groupKey: groupKey?.aesKeyEncB64Url || null,
+          version: groupKey?.version || null,
+        };
+      } else if (rs.conversation) {
+        const conv = rs.conversation;
+        const otherMember = conv.members.find((m) => m.userId !== userId);
+        return {
+          type: 'conversation',
+          id: conv.id,
+          name: `${otherMember?.user.firstName || ''} ${otherMember?.user.lastName || ''}`.trim(),
+          avatar: otherMember?.user.avatar || null,
+          isGroup: false,
+          otherUserId: otherMember?.user.id || null,
+          lastMessage: convLastMsgMap[conv.id] || null,
+          unreadCount: convUnreadMap[conv.id] || 0,
+          convoKeyEnc: conv.convoKeyEnc || null,
+        };
+      } else if (rs.searchedUser) {
+        const u = rs.searchedUser;
+        return {
+          type: 'user',
+          id: u.id,
+          name: `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+          username: u.username || null,
+          avatar: u.avatar || null,
+          publicKey: u.keys?.publicKey || null,
+        };
+      }
+      return null;
+    }).filter(Boolean);
 
     return {
       status: true,
       message: 'Recent searches fetched successfully',
-      data: groupWithUnread,
+      data: results,
       pagination: {
-        total: groupWithUnread.length,
+        total: results.length,
         limit,
-        totalPages: Math.ceil(groupWithUnread.length / limit),
+        totalPages: Math.ceil(results.length / limit),
       },
     };
   } catch (error) {

@@ -45,7 +45,11 @@ exports.sendMessage = async (
       prisma.user.findUnique({ where: { id: senderId } }),
       prisma.user.findUnique({
         where: { id: recipientId },
-        select: { id: true, fcmToken: true },
+        select: {
+          id: true,
+          isNotification: true,
+          fcmTokens: { select: { token: true } },
+        },
       }),
     ]);
 
@@ -93,8 +97,28 @@ exports.sendMessage = async (
         },
         include: {
           sender: {
-            select: { id: true, firstName: true, lastName: true, role: true },
+            select: { id: true, firstName: true, lastName: true, role: true, avatar: true },
           },
+        },
+      });
+
+      // Seed MessageRead for the recipient (for delivery tracking)
+      await tx.messageRead.create({
+        data: {
+          userId: recipientId,
+          messageId: msg.id,
+          readAt: null,
+          deliveredAt: null,
+        },
+      });
+
+      // Also create MessageRead for sender (marked as read)
+      await tx.messageRead.create({
+        data: {
+          userId: senderId,
+          messageId: msg.id,
+          readAt: new Date(),
+          deliveredAt: new Date(),
         },
       });
 
@@ -154,8 +178,20 @@ exports.sendMessage = async (
 
     io.to(`user_${recipientId}`).emit('conv_message', chat);
 
-    if (recipient.fcmTokens && recipient.fcmTokens.length > 0) {
-      await sendPushNotification(recipient.fcmTokens, message);
+    // Only send push if recipient has notifications enabled
+    if (recipient.isNotification && recipient.fcmTokens && recipient.fcmTokens.length > 0) {
+      const tokens = recipient.fcmTokens.map((t) => t.token).filter(Boolean);
+      if (tokens.length > 0) {
+        await sendPushNotification(
+          tokens,
+          message,
+          null, // group
+          [], // unreadCounts
+          1, // version
+          {}, // envelopeMap
+          recipientId, // singleRecipientId
+        );
+      }
     }
 
     return message;
@@ -170,6 +206,7 @@ exports.sendMessage = async (
           userId: true,
           user: {
             select: {
+              isNotification: true,
               fcmTokens: {
                 select: { token: true },
               },
@@ -197,6 +234,13 @@ exports.sendMessage = async (
     .map((m) => m.userId)
     .filter((uid) => uid !== senderId);
 
+  // Get all group members for creating MessageRead records
+  const allMembers = await prisma.groupMember.findMany({
+    where: { groupId },
+    select: { userId: true },
+  });
+  const allMemberIds = allMembers.map((m) => m.userId);
+
   const message = await prisma.$transaction(async (tx) => {
     const msg = await tx.message.create({
       data: {
@@ -219,6 +263,16 @@ exports.sendMessage = async (
           select: { id: true, firstName: true, lastName: true, role: true },
         },
       },
+    });
+
+    // Create MessageRead records for ALL members inside transaction
+    await tx.messageRead.createMany({
+      data: allMemberIds.map((uid) => ({
+        userId: uid,
+        messageId: msg.id,
+        readAt: uid === senderId ? new Date() : null,
+        deliveredAt: uid === senderId ? new Date() : null,
+      })),
     });
 
     // Seed MessageDelivery for each recipient in the group
@@ -252,19 +306,7 @@ exports.sendMessage = async (
   //   channel: 'SOCKET',
   // });
 
-  const members = await prisma.groupMember.findMany({
-    where: { groupId: groupId },
-  });
-
-  // Create read/delivery tracking rows
-  await prisma.messageRead.createMany({
-    data: members.map((m) => ({
-      userId: m.userId,
-      messageId: message.id,
-      readAt: m.userId === senderId ? new Date() : null, // ✅ sender gets readAt
-      deliveredAt: m.userId === senderId ? new Date() : null, // ✅ sender gets readAt
-    })),
-  });
+  // MessageRead records already created in transaction above
 
   const envelopes = await prisma.groupKeyEnvelope.findMany({
     where: { groupId, version: message.version || 1 },
@@ -277,32 +319,18 @@ exports.sendMessage = async (
 
   const room = io.sockets.adapter.rooms.get(`group_${groupId}`);
   const liveUserIds = new Set();
+  const liveSocketsData = []; // Collect socket data for parallel processing
 
   if (room) {
+    // First pass: collect live users and emit messages immediately (non-blocking)
     for (const socketId of room) {
       const liveSocket = io.sockets.sockets.get(socketId);
       if (!liveSocket?.userId) continue;
 
-      if (liveSocket?.userId) {
-        liveUserIds.add(liveSocket.userId);
-      }
+      liveUserIds.add(liveSocket.userId);
+      liveSocketsData.push({ socketId, userId: liveSocket.userId, socket: liveSocket });
 
-      // Mark message as read instantly if user is in the chat
-      const newupdate = await prisma.messageRead.upsert({
-        where: {
-          userId_messageId: {
-            userId: liveSocket.userId,
-            messageId: message.id,
-          },
-        },
-        update: { readAt: new Date() },
-        create: {
-          userId: liveSocket.userId,
-          messageId: message.id,
-          readAt: new Date(),
-        },
-      });
-
+      // Emit message immediately (don't wait for DB)
       if (liveSocket.userId !== senderId) {
         liveSocket.emit('group_message', {
           id: message.id,
@@ -333,6 +361,28 @@ exports.sendMessage = async (
             : null,
         });
       }
+    }
+
+    // Second pass: mark messages as read in parallel (non-blocking)
+    if (liveSocketsData.length > 0) {
+      Promise.all(
+        liveSocketsData.map(({ userId }) =>
+          prisma.messageRead.upsert({
+            where: {
+              userId_messageId: {
+                userId,
+                messageId: message.id,
+              },
+            },
+            update: { readAt: new Date() },
+            create: {
+              userId,
+              messageId: message.id,
+              readAt: new Date(),
+            },
+          })
+        )
+      ).catch((err) => console.error('Error marking messages as read:', err));
     }
   }
 
@@ -400,23 +450,21 @@ exports.sendMessage = async (
   // // Emit to all users in that chat room
   // getIO().to(chatId).emit('chatUpdated', updatedChat);
 
+  // Filter members: skip sender, only include those with notifications enabled
   const fcmTokens = group.members
-    .filter((m) => m.userId !== senderId) // skip sender
+    .filter((m) => m.userId !== senderId && m.user.isNotification) // skip sender & those with notifications disabled
     .flatMap((m) => m.user.fcmTokens.map((t) => t.token)) // extract token strings
     .filter(Boolean); // remove null/undefined
 
   if (fcmTokens.length > 0) {
-    if (fcmTokens.length > 0) {
-      sendPushNotification(
-        fcmTokens,
-        message,
-        group,
-        unreadCounts,
-        version,
-        envelopeMap,
-        liveUserIds, // pass the set you already built above
-      );
-    }
+    sendPushNotification(
+      fcmTokens,
+      message,
+      group,
+      unreadCounts,
+      version,
+      envelopeMap,
+    );
   }
 
   return message;
@@ -437,21 +485,24 @@ exports.fetchMessages = async ({ type, id, page = 1, limit = 20, userId }) => {
   if (type === 'conversation') {
     whereClause = { conversationId: id };
   } else if (type === 'group') {
-    const membership = await prisma.groupMember.findFirst({
-      where: { userId, groupId: id },
-      select: { joinedAt: true },
-    });
+    // Fetch membership and key envelope in parallel
+    const [membership, keyEnvelope] = await Promise.all([
+      prisma.groupMember.findFirst({
+        where: { userId, groupId: id },
+        select: { joinedAt: true },
+      }),
+      prisma.groupKeyEnvelope.findFirst({
+        where: { userId, groupId: id },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+
     if (!membership) {
       throw new Error('User is not a member of this group');
     }
 
-    // 2. Find when the user first got a group key envelope (if any)
-    const keyEnvelope = await prisma.groupKeyEnvelope.findFirst({
-      where: { userId, groupId: id },
-      orderBy: { createdAt: 'asc' }, // first time they got a usable key
-      select: { createdAt: true },
-    });
-    // 3. Effective "start date" is the later of joinedAt vs keyEnvelope.createdAt
+    // Effective "start date" is the later of joinedAt vs keyEnvelope.createdAt
     const effectiveStart = keyEnvelope
       ? new Date(
           Math.max(
@@ -461,12 +512,11 @@ exports.fetchMessages = async ({ type, id, page = 1, limit = 20, userId }) => {
         )
       : membership.joinedAt;
 
-    // 4. Only fetch messages created after effectiveStart
+    // Only fetch messages created after effectiveStart
     whereClause = {
       groupId: id,
       createdAt: { gte: effectiveStart },
     };
-    // whereClause = { groupId: id };
   } else {
     throw new Error('Invalid type. Must be "conversation" or "group"');
   }
@@ -734,7 +784,12 @@ exports.getChatListService = async ({ userId, page = 1, limit = 10 }) => {
           members: { some: { userId } },
           archived: false,
         },
-        select: { id: true, name: true, profileImg: true },
+        select: {
+          id: true,
+          name: true,
+          profileImg: true,
+          _count: { select: { members: true } },
+        },
       }),
       prisma.groupKeyEnvelope.findMany({
         where: { userId },
@@ -872,6 +927,7 @@ exports.getChatListService = async ({ userId, page = 1, limit = 10 }) => {
         name: g.name,
         avatar: g.profileImg || null,
         isGroup: true,
+        memberCount: g._count?.members || 0,
         lastMessage: lastMsgMap[g.id] || null,
         unreadCount: unreadMap[g.id] || 0,
         groupKey: groupKey?.aesKeyEncB64Url || null,

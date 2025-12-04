@@ -380,12 +380,13 @@ router.post(
       // const deviceId = req.headers['x-device-id'] || null;
       const userAgent = req.headers['user-agent'] || null;
 
-      if (fcmToken) {
+      // Only process fcmToken if it's a non-empty string (ignore null, undefined, or "")
+      if (fcmToken && typeof fcmToken === 'string' && fcmToken.trim() !== '') {
         if (!deviceId) {
           return res.status(400).json({
             success: false,
             error: {
-              message: 'deviceId required',
+              message: 'deviceId required when fcmToken is provided',
             },
           });
         }
@@ -398,14 +399,14 @@ router.post(
           await prisma.fcmToken.update({
             where: { id: existing.id },
             data: {
-              token: fcmToken,
+              token: fcmToken.trim(),
               deviceType: deviceType || null,
             },
           });
         } else {
           await prisma.fcmToken.create({
             data: {
-              token: fcmToken,
+              token: fcmToken.trim(),
               deviceType: deviceType || null,
               deviceId,
               userId: user.id,

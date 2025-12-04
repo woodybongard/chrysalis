@@ -1,3 +1,14 @@
+/**
+ * Get the message status from the message object
+ * Status is stored directly on the message and updated when:
+ * - SENT: Message created
+ * - DELIVERED: All recipients have received it (deliveredAt set for all)
+ * - READ: All recipients have read it (readAt set for all)
+ */
+function getMessageStatus(message) {
+  return message?.status || 'SENT';
+}
+
 function buildChatObject({
   conversation,
   group,
@@ -28,7 +39,7 @@ function buildChatObject({
             content: message.encryptedText,
             createdAt: message.createdAt,
             isSenderYou: message.sender.id === userId,
-            status: computeStatus(message, conversation.members),
+            status: getMessageStatus(message),
             sender: {
               id: message.sender.id,
               name: `${message.sender.firstName || ''} ${
@@ -37,7 +48,7 @@ function buildChatObject({
             },
           }
         : null,
-      unreadCount: unreadCount || 0, // or compute unread properly
+      unreadCount: unreadCount || 0,
     };
   }
 
@@ -55,7 +66,7 @@ function buildChatObject({
             content: message.encryptedText,
             createdAt: message.createdAt,
             isSenderYou: message.sender.id === userId,
-            status: 'SENT' /* computeStatus(message, group.members) */,
+            status: getMessageStatus(message),
             sender: {
               id: message.sender.id,
               name: `${message.sender.firstName || ''} ${
@@ -66,7 +77,7 @@ function buildChatObject({
             iv,
           }
         : null,
-      unreadCount: unreadCount || 0, // or compute unread properly
+      unreadCount: unreadCount || 0,
       groupKey: aesKeyEncB64Url,
       version,
     };

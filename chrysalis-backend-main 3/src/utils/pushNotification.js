@@ -1,6 +1,8 @@
 const prisma = require('../config/database'); // import prisma
 const admin = require('../config/firebase'); // initializeApp is already done here
-const { getIO } = require('../socket');
+
+// Lazy import to avoid circular dependency
+const getIO = () => require('../socket').getIO();
 async function sendPushNotification(
   tokens,
   message,
@@ -8,13 +10,8 @@ async function sendPushNotification(
   unreadCounts = [],
   version = 1,
   envelopeMap = {},
-  liveUserIds = new Set(), // Set of userIds currently in the chat (if provided)
-  singleRecipientId = null, // optional: for 1:1 flows
+  singleRecipientId = null,
 ) {
-  // Normalize liveUserIds (accept array or Set)
-  if (Array.isArray(liveUserIds)) liveUserIds = new Set(liveUserIds || []);
-  if (!liveUserIds) liveUserIds = new Set();
-
   try {
     const isGroup = !!message.groupId;
     const chatId = isGroup ? message.groupId : message.conversationId;
@@ -33,14 +30,6 @@ async function sendPushNotification(
 
     // ------------- Single recipient (1:1) handling -------------
     if (!isGroup && singleRecipientId) {
-      // If the recipient is live in the conversation, skip sending push entirely
-      if (liveUserIds.has(singleRecipientId)) {
-        console.log(
-          `Skipping push: recipient ${singleRecipientId} is currently in conversation ${chatId}`,
-        );
-        return;
-      }
-
       // tokens param may be an array of token strings
       const memberTokens = Array.isArray(tokens) ? tokens.filter(Boolean) : [];
       if (memberTokens.length === 0) return;
@@ -48,7 +37,7 @@ async function sendPushNotification(
       const payload = {
         tokens: memberTokens,
         notification: {
-          title: name,
+          title: name || 'New Message',
           body: 'You have a new message',
         },
         data: {
@@ -59,7 +48,7 @@ async function sendPushNotification(
           avatar: avatar || '',
           route: 'chat_detail',
           unreadCount: String(unreadCountMap[singleRecipientId] || 0),
-          version: String(version),
+          version: String(version || 1),
           groupKey: envelopeMap[singleRecipientId] || '',
         },
       };
@@ -71,14 +60,26 @@ async function sendPushNotification(
         if (resp.success) {
           console.log(`✔️ Delivered push to ${singleRecipientId}`);
 
-          // Mark deliveredAt for this recipient
+          const now = new Date();
+
+          // Mark deliveredAt for this recipient in MessageRead
           await prisma.messageRead.updateMany({
             where: {
               messageId: message.id,
               userId: singleRecipientId,
               deliveredAt: null,
             },
-            data: { deliveredAt: new Date() },
+            data: { deliveredAt: now },
+          });
+
+          // Update MessageDelivery record with PUSH channel
+          await prisma.messageDelivery.updateMany({
+            where: { messageId: message.id, recipientId: singleRecipientId },
+            data: {
+              status: 'DELIVERED',
+              lastChannel: 'PUSH',
+              deliveredAt: now,
+            },
           });
 
           // Check if all delivered and update status & notify sender (reuse existing logic)
@@ -150,16 +151,21 @@ async function sendPushNotification(
 
     // ------------- Group handling -------------
     if (isGroup && group && group.members && group.members.length > 0) {
+      console.log(`📤 Group push: senderId=${message.senderId}, members=${group.members.map(m => m.userId).join(',')}`);
+
       for (const member of group.members) {
         const uid = member.userId;
 
         // Skip sender
-        if (uid === message.senderId) continue;
+        if (uid === message.senderId) {
+          console.log(`Skipping push for user ${uid} — is the sender`);
+          continue;
+        }
 
-        // Skip members who are currently live in the group chat
-        if (liveUserIds.has(uid)) {
+        // Skip members who have notifications disabled
+        if (member.user?.isNotification === false) {
           console.log(
-            `Skipping push for user ${uid} — currently live in group ${chatId}`,
+            `Skipping push for user ${uid} — notifications disabled`,
           );
           continue;
         }
@@ -175,7 +181,7 @@ async function sendPushNotification(
         const payload = {
           tokens: memberTokens,
           notification: {
-            title: name,
+            title: name || 'New Message',
             body: 'You have a new message',
           },
           data: {
@@ -185,9 +191,9 @@ async function sendPushNotification(
             isGroup: 'true',
             avatar: avatar || '',
             route: 'chat_detail',
-            unreadCount: String(userUnreadCount),
-            version: String(version),
-            groupKey: aesKeyEncB64Url,
+            unreadCount: String(userUnreadCount || 0),
+            version: String(version || 1),
+            groupKey: aesKeyEncB64Url || '',
           },
         };
 
@@ -198,14 +204,26 @@ async function sendPushNotification(
           if (resp.success) {
             console.log(`✔️ Delivered push to ${uid}`);
 
-            // Mark deliveredAt
+            const now = new Date();
+
+            // Mark deliveredAt in MessageRead
             await prisma.messageRead.updateMany({
               where: {
                 messageId: message.id,
                 userId: uid,
                 deliveredAt: null,
               },
-              data: { deliveredAt: new Date() },
+              data: { deliveredAt: now },
+            });
+
+            // Update MessageDelivery record with PUSH channel
+            await prisma.messageDelivery.updateMany({
+              where: { messageId: message.id, recipientId: uid },
+              data: {
+                status: 'DELIVERED',
+                lastChannel: 'PUSH',
+                deliveredAt: now,
+              },
             });
 
             // Fetch participants of the group and current message reads
@@ -279,3 +297,91 @@ async function sendPushNotification(
 }
 
 exports.sendPushNotification = sendPushNotification;
+
+/**
+ * Send push notification for message reactions
+ * @param {string} messageOwnerId - The user who sent the original message
+ * @param {string} reactorId - The user who reacted
+ * @param {string} reactorName - Name of the user who reacted
+ * @param {string} emoji - The emoji used
+ * @param {string} chatId - Conversation or group ID
+ * @param {boolean} isGroup - Whether this is a group chat
+ * @param {string} chatName - Name of the chat/group
+ */
+async function sendReactionPushNotification({
+  messageOwnerId,
+  reactorId,
+  reactorName,
+  emoji,
+  chatId,
+  isGroup,
+  chatName,
+}) {
+  try {
+    // Don't notify if user reacted to their own message
+    if (messageOwnerId === reactorId) {
+      console.log('Skipping reaction push: user reacted to their own message');
+      return;
+    }
+
+    // Get message owner's notification preference and FCM tokens
+    const messageOwner = await prisma.user.findUnique({
+      where: { id: messageOwnerId },
+      select: {
+        isNotification: true,
+        fcmTokens: { select: { token: true } },
+      },
+    });
+
+    if (!messageOwner) {
+      console.log('Skipping reaction push: message owner not found');
+      return;
+    }
+
+    // Check notification preference
+    if (messageOwner.isNotification === false) {
+      console.log(
+        `Skipping reaction push: user ${messageOwnerId} has notifications disabled`,
+      );
+      return;
+    }
+
+    const tokens = messageOwner.fcmTokens.map((t) => t.token).filter(Boolean);
+    if (tokens.length === 0) {
+      console.log('Skipping reaction push: no FCM tokens');
+      return;
+    }
+
+    const payload = {
+      tokens,
+      notification: {
+        title: isGroup ? chatName : reactorName,
+        body: `${reactorName} reacted ${emoji} to your message`,
+      },
+      data: {
+        id: chatId,
+        type: isGroup ? 'group' : 'conversation',
+        route: 'chat_detail',
+        isGroup: String(isGroup),
+        notificationType: 'reaction',
+        emoji: emoji,
+        reactorId: reactorId,
+        reactorName: reactorName,
+      },
+    };
+
+    const response = await admin.messaging().sendEachForMulticast(payload);
+
+    response.responses.forEach((resp, i) => {
+      if (resp.success) {
+        console.log(`✔️ Reaction push delivered to ${messageOwnerId}`);
+      } else {
+        console.error(`❌ Reaction push failed for token ${tokens[i]}:`, resp.error);
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error sending reaction push notification:', err);
+  }
+}
+
+exports.sendReactionPushNotification = sendReactionPushNotification;

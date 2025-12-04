@@ -23,9 +23,13 @@ exports.search = async (req, res, next) => {
 exports.addRecentSearch = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { groupId } = req.body;
+    const { groupId, conversationId, searchedUserId } = req.body;
 
-    const result = await searchService.addRecentSearch(userId, groupId);
+    const result = await searchService.addRecentSearch(userId, {
+      groupId,
+      conversationId,
+      searchedUserId,
+    });
 
     res.status(201).json(result);
   } catch (err) {

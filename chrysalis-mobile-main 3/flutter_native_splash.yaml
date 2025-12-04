@@ -1,0 +1,24 @@
+flutter_native_splash:
+  # Background color
+  color: "#FFFFFF"
+
+  # Splash image for pre-Android 12 and iOS
+  image: assets/images/splash.png
+
+  # Android 12+ specific settings (uses circular mask)
+  android_12:
+    image: assets/images/splash_android12.png
+    icon_background_color: "#FFFFFF"
+    color: "#FFFFFF"
+
+  # Platform settings
+  android: true
+  ios: true
+  web: true
+
+  # Positioning
+  android_gravity: center
+  ios_content_mode: center
+
+  # Don't hide status bar
+  fullscreen: false
