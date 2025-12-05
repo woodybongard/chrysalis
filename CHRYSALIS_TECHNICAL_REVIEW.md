@@ -15,7 +15,7 @@ Chrysalis is a multi-platform secure messaging application built with:
 - **Push Notifications:** Firebase Cloud Messaging (FCM)
 - **Admin Panel:** React + Refine.dev
 
-This document outlines 10 identified issues and feature requests with technical analysis and implementation recommendations.
+This document outlines 11 identified issues and feature requests with technical analysis and implementation recommendations.
 
 ---
 
@@ -457,6 +457,81 @@ fileUrl: sent.fileUrl,
 
 ---
 
+### 11. Web Drag & Drop File Upload
+
+**Problem:** Users want to drag and drop files into the chat on the web version instead of using the file picker button.
+
+**Current State:**
+- File upload works via button/file picker
+- Drag and drop is **not implemented**
+- All file validation and upload logic already exists
+
+**Currently Allowed File Types:**
+
+| Category | Extensions |
+|----------|------------|
+| Documents | `pdf`, `doc`, `docx` |
+| Medical | `dcm` (DICOM) |
+| Images | `jpg`, `jpeg`, `png`, `gif`, `heic` |
+| Other | `exe` ⚠️ (security concern - consider removing) |
+
+**File Size Limit:** 1 GB
+
+**Implementation Approach:**
+
+Flutter web requires JavaScript interop for drag and drop events. The existing upload flow can be reused.
+
+```dart
+// Web-only code using dart:html
+import 'dart:html' as html;
+
+if (kIsWeb) {
+  final dropZone = html.document.getElementById('chat-input');
+
+  dropZone?.onDragOver.listen((e) {
+    e.preventDefault();
+    // Show "drop here" visual overlay
+  });
+
+  dropZone?.onDrop.listen((e) {
+    e.preventDefault();
+    final files = e.dataTransfer?.files;
+    if (files != null && files.isNotEmpty) {
+      // Validate using existing FileConstants.isFileTypeAllowed()
+      // Validate using existing FileConstants.isFileSizeAllowed()
+      // Show existing FileSendDialog for preview
+      // Reuse existing upload logic
+    }
+  });
+}
+```
+
+**Tasks Required:**
+
+| Task | Effort |
+|------|--------|
+| Add drag event listeners (JS interop) | 2-4 hours |
+| Visual feedback (drop zone highlight/overlay) | 1-2 hours |
+| Connect to existing upload flow | 1-2 hours |
+| Testing across browsers (Chrome, Firefox, Safari) | 2-3 hours |
+| **Total** | **~1 day** |
+
+**Why It's Straightforward:**
+- File validation already exists (`FileConstants.isFileTypeAllowed()`)
+- Size validation already exists (`FileConstants.isFileSizeAllowed()`)
+- Upload flow already exists
+- Preview dialog already exists (`FileSendDialog`)
+- Only need to add a new trigger mechanism (drag) alongside existing button
+
+**Files to Modify:**
+- `lib/features/chat_detail/presentation/pages/chat_detail_page.dart` - Add drag listeners
+- Add conditional web-only imports (`dart:html`)
+
+**Effort:** 1 day
+**Priority:** Low-Medium (nice UX improvement)
+
+---
+
 ## Summary: Prioritized Roadmap
 
 ### Quick Wins (1-2 days each)
@@ -465,6 +540,7 @@ fileUrl: sent.fileUrl,
 |------|-------------|--------|
 | 10 | Fix file sender bug | 30 minutes |
 | 9 | View group members UI | 1 day |
+| 11 | Web drag & drop file upload | 1 day |
 | 8B | See who reacted | 1-2 days |
 | 3 | Badge count persistence | 1-2 days |
 
@@ -499,6 +575,7 @@ fileUrl: sent.fileUrl,
 2. **Firebase Config:** Web service worker has hardcoded credentials pointing to wrong project
 3. **Token Storage:** `expiresAt` field from JWT not stored or used for proactive refresh
 4. **Device ID:** Android `ANDROID_ID` can change, causing authentication issues
+5. **Executable Files Allowed:** `.exe` files are in the allowed upload list - security risk, consider removing
 
 ---
 
@@ -506,10 +583,11 @@ fileUrl: sent.fileUrl,
 
 **Mobile App (Flutter):**
 - `lib/features/chat_detail/presentation/bloc/chat_detail_bloc.dart` - Message handling, file bug
-- `lib/features/chat_detail/presentation/pages/chat_detail_page.dart` - Chat UI, socket listeners
+- `lib/features/chat_detail/presentation/pages/chat_detail_page.dart` - Chat UI, socket listeners, drag & drop target
 - `lib/features/notifications/presentation/service/notification_service.dart` - Push notifications
 - `lib/core/network/auth_interceptor.dart` - Token refresh logic
 - `lib/features/search_groups/presentation/pages/search_group.dart` - DM UI block
+- `lib/core/constants/file_constants.dart` - Allowed file types and size limits
 
 **Backend (Node.js):**
 - `src/services/chat.service.js` - Message sending, no role checks
