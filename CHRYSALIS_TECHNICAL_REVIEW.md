@@ -1,7 +1,7 @@
 # Chrysalis Technical Review & Roadmap
 
 **Prepared for:** Development Meeting
-**Date:** December 4, 2025
+**Date:** December 5, 2025
 **Application:** Chrysalis - Medical/Healthcare Secure Messaging Platform
 
 ---
@@ -47,7 +47,6 @@ data: {
 }
 ```
 
-**Effort:** 2-3 days
 **Priority:** High
 
 ---
@@ -83,7 +82,6 @@ loadChats();                                   // 3. Load history
 
 Additionally: Implement polling fallback - if no socket events for 10+ seconds, fetch via API.
 
-**Effort:** 2-3 days
 **Priority:** High
 
 ---
@@ -106,7 +104,6 @@ Additionally: Implement polling fallback - if no socket events for 10+ seconds, 
 3. Sync with server's unread count on startup
 4. For desktop: Use `flutter_local_notifications` package
 
-**Effort:** 1-2 days
 **Priority:** Medium
 
 ---
@@ -137,7 +134,6 @@ Chat Detail Page Structure:
 - Create `FileListWidget` with file icons, sizes, and dates
 - Filter existing messages by type (no backend changes required)
 
-**Effort:** 2-3 days
 **Priority:** Medium
 
 ---
@@ -167,15 +163,11 @@ flutter build windows
 ```
 
 **Implementation Tasks:**
-
-| Task | Effort |
-|------|--------|
-| Enable desktop build targets | 1 hour |
-| UI responsive adjustments for larger screens | 1-2 days |
-| Native notifications via socket (not FCM) | 1-2 days |
-| Code signing (macOS notarization, Windows certificate) | 1-2 days |
-| Build and distribution pipeline | 1 day |
-| **Total for Desktop** | **~1 week** |
+- Enable desktop build targets
+- UI responsive adjustments for larger screens
+- Native notifications via socket (not FCM)
+- Code signing (macOS notarization, Windows certificate)
+- Build and distribution pipeline
 
 **Desktop Notification Approach:**
 - Cannot use FCM push on desktop the same way as mobile
@@ -198,7 +190,6 @@ static Future<String?> getToken() async {
 }
 ```
 
-**Effort:** Desktop apps ~1 week; Web notifications ~2-3 days
 **Priority:** Medium-High
 
 ---
@@ -249,7 +240,6 @@ void _scheduleTokenRefresh() async {
 }
 ```
 
-**Effort:** 2-3 days
 **Priority:** High
 
 ---
@@ -308,7 +298,6 @@ if (!canDM[sender.role].includes(recipient.role)) {
 
 4. **Update mobile UI to allow DMs for permitted roles**
 
-**Effort:** 1-2 days
 **Priority:** Medium
 
 ---
@@ -340,7 +329,6 @@ No `replyToId` field in database, no threading, no quote functionality.
 └─────────────────────────────┘
 ```
 
-**Effort:** 3-5 days
 **Priority:** Medium
 
 ---
@@ -377,8 +365,7 @@ void _showReactorsList(String emoji, List<User> reactors) {
 }
 ```
 
-**Effort:** 1-2 days
-**Priority:** Low-Medium (easy win)
+**Priority:** Low-Medium
 
 ---
 
@@ -413,12 +400,11 @@ void _showMembersList() {
 router.get('/:groupId', authenticate, verifyGroupMember, groupController.getGroupDetails);
 ```
 
-**Effort:** 1 day for UI; +1 day to secure API
-**Priority:** Low (easy win)
+**Priority:** Low
 
 ---
 
-### 10. File Sender Cannot See Own Sent Files (NEW BUG)
+### 10. File Sender Cannot See Own Sent Files (BUG)
 
 **Problem:** When a user sends a picture or file, the sender cannot see or download it, but other users can.
 
@@ -452,7 +438,6 @@ fileUrl: savedFilePath,
 fileUrl: sent.fileUrl,
 ```
 
-**Effort:** 30 minutes (one-line fix)
 **Priority:** High
 
 ---
@@ -506,16 +491,6 @@ if (kIsWeb) {
 }
 ```
 
-**Tasks Required:**
-
-| Task | Effort |
-|------|--------|
-| Add drag event listeners (JS interop) | 2-4 hours |
-| Visual feedback (drop zone highlight/overlay) | 1-2 hours |
-| Connect to existing upload flow | 1-2 hours |
-| Testing across browsers (Chrome, Firefox, Safari) | 2-3 hours |
-| **Total** | **~1 day** |
-
 **Why It's Straightforward:**
 - File validation already exists (`FileConstants.isFileTypeAllowed()`)
 - Size validation already exists (`FileConstants.isFileSizeAllowed()`)
@@ -527,8 +502,7 @@ if (kIsWeb) {
 - `lib/features/chat_detail/presentation/pages/chat_detail_page.dart` - Add drag listeners
 - Add conditional web-only imports (`dart:html`)
 
-**Effort:** 1 day
-**Priority:** Low-Medium (nice UX improvement)
+**Priority:** Low-Medium
 
 ---
 
@@ -563,7 +537,6 @@ if (kIsWeb) {
 - Add proper error boundaries and retry logic
 - Ensure socket connection is non-blocking during login
 
-**Effort:** 1-2 days (investigation) + 1-2 days (fix)
 **Priority:** High
 
 ---
@@ -633,47 +606,41 @@ router.put(
 - `src/middleware/roles.js` - Already exists, use `authorizeRoles`
 - Admin panel - Add UI for password reset
 
-**Effort:** 1 day (backend) + 1 day (admin UI)
 **Priority:** Medium
 
 ---
 
 ## Summary: Prioritized Roadmap
 
-### Quick Wins (1-2 days each)
+### Quick Wins
 
-| Item | Description | Effort |
-|------|-------------|--------|
-| 9 | View group members UI | 1 day |
-| 11 | Web drag & drop file upload | 1 day |
-| 8B | See who reacted | 1-2 days |
-| 3 | Badge count persistence | 1-2 days |
+| Item | Description |
+|------|-------------|
+| 10 | Fix file sender bug (one-line fix) |
+| 9 | View group members UI |
+| 11 | Web drag & drop file upload |
+| 8B | See who reacted |
+| 3 | Badge count persistence |
 
-### Bug Fixes (2-3 days each)
+### Bug Fixes
 
-| Item | Description | Effort |
-|------|-------------|--------|
-| 10 | Fix file sender bug | 30 minutes |
-| 1 | Fix notification inconsistency | 2-3 days |
-| 2 | Fix real-time message delivery | 2-3 days |
-| 6 | Fix Android re-login | 2-3 days |
-| 12 | Fix desktop/web sign-in unresponsive | 2-4 days |
+| Item | Description |
+|------|-------------|
+| 1 | Fix notification inconsistency |
+| 2 | Fix real-time message delivery |
+| 6 | Fix Android re-login |
+| 12 | Fix desktop/web sign-in unresponsive |
 
-### Medium Features (2-5 days each)
+### Features
 
-| Item | Description | Effort |
-|------|-------------|--------|
-| 4 | Media/files tabs | 2-3 days |
-| 7 | Role-based DM permissions | 1-2 days |
-| 5 | Web notifications | 2-3 days |
-| 13 | Admin password reset (no old password) | 2 days |
-
-### Larger Features
-
-| Item | Description | Effort |
-|------|-------------|--------|
-| 5 | Desktop apps (Mac/Windows) | ~1 week |
-| 8A | Reply to messages | 3-5 days |
+| Item | Description |
+|------|-------------|
+| 4 | Media/files tabs |
+| 7 | Role-based DM permissions |
+| 5 | Web notifications |
+| 13 | Admin password reset (no old password) |
+| 5 | Desktop apps (Mac/Windows) |
+| 8A | Reply to messages |
 
 ---
 
