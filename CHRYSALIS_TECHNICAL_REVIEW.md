@@ -15,7 +15,7 @@ Chrysalis is a multi-platform secure messaging application built with:
 - **Push Notifications:** Firebase Cloud Messaging (FCM)
 - **Admin Panel:** React + Refine.dev
 
-This document outlines 11 identified issues and feature requests with technical analysis and implementation recommendations.
+This document outlines 13 identified issues and feature requests with technical analysis and implementation recommendations.
 
 ---
 
@@ -532,13 +532,118 @@ if (kIsWeb) {
 
 ---
 
+### 12. Desktop/Web Sign-In Page Unresponsive
+
+**Problem:** Approximately half the time when signing in on desktop/web, the page becomes unresponsive. Users must refresh and try again.
+
+**Symptoms:**
+- Login form freezes after submitting credentials
+- Page becomes unresponsive (no spinner, no feedback)
+- Refreshing the page and retrying often works
+
+**Likely Causes to Investigate:**
+
+| Potential Cause | Description |
+|-----------------|-------------|
+| Socket connection blocking | Login may wait for socket connection that times out or hangs |
+| Crypto key generation | RSA key generation on web can be slow and block UI thread |
+| Unhandled promise rejection | Async operation failing silently without error handling |
+| Race condition | Multiple async operations competing (auth, socket, FCM token) |
+
+**Investigation Steps:**
+1. Check browser console for errors during login
+2. Review `login_bloc.dart` for blocking operations
+3. Check if crypto operations run on main thread (should use isolates/web workers)
+4. Add timeout handling to login flow
+5. Test with network throttling to identify slow operations
+
+**Potential Fixes:**
+- Add loading state with timeout fallback
+- Move crypto operations to web worker/isolate
+- Add proper error boundaries and retry logic
+- Ensure socket connection is non-blocking during login
+
+**Effort:** 1-2 days (investigation) + 1-2 days (fix)
+**Priority:** High
+
+---
+
+### 13. Admin Password Reset Without Old Password
+
+**Problem:** Admins cannot reset a user's password if the user has forgotten their old password. The current system requires the old password to change it.
+
+**Current Implementation:**
+
+```javascript
+// user.service.js line 195
+exports.updatePassword = async (userId, currentPassword, newPassword) => {
+  // ...
+  const isPasswordValid = await bcryptjs.compare(currentPassword, user.password);
+  if (!isPasswordValid) {
+    throw new Error('Current password is incorrect');
+  }
+  // ...
+}
+```
+
+**Current Endpoint:** `PUT /api/v1/auth/change-password`
+- Requires: `userId`, `currentPassword`, `newPassword`
+- Only works if user knows their current password
+
+**Recommended Solution:**
+
+Add a new admin-only endpoint for password reset:
+
+```javascript
+// New endpoint: PUT /api/v1/admin/reset-password
+router.put(
+  '/reset-password',
+  authenticate,
+  authorizeRoles('SUPERADMIN', 'ADMIN'),  // Only admins can use this
+  async (req, res) => {
+    const { userId, newPassword } = req.body;
+
+    // Verify admin is not resetting their own password via this endpoint
+    // (they should use change-password for themselves)
+
+    const hashedPassword = await bcryptjs.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword }
+    });
+
+    // Optionally: Invalidate all refresh tokens for this user
+    await prisma.refreshToken.deleteMany({ where: { userId } });
+
+    res.json({ success: true, message: 'Password reset successfully' });
+  }
+);
+```
+
+**Security Considerations:**
+- Only SUPERADMIN and ADMIN roles should access this endpoint
+- Should log this action in audit trail
+- Should invalidate existing sessions/tokens for the user
+- Consider sending notification to user that password was reset
+- SUPERADMIN should be able to reset ADMIN passwords; ADMIN should only reset USER passwords
+
+**Files to Modify:**
+- `src/routes/auth.js` or `src/routes/users.js` - Add new endpoint
+- `src/services/user.service.js` - Add `adminResetPassword` function
+- `src/middleware/roles.js` - Already exists, use `authorizeRoles`
+- Admin panel - Add UI for password reset
+
+**Effort:** 1 day (backend) + 1 day (admin UI)
+**Priority:** Medium
+
+---
+
 ## Summary: Prioritized Roadmap
 
 ### Quick Wins (1-2 days each)
 
 | Item | Description | Effort |
 |------|-------------|--------|
-| 10 | Fix file sender bug | 30 minutes |
 | 9 | View group members UI | 1 day |
 | 11 | Web drag & drop file upload | 1 day |
 | 8B | See who reacted | 1-2 days |
@@ -548,9 +653,11 @@ if (kIsWeb) {
 
 | Item | Description | Effort |
 |------|-------------|--------|
+| 10 | Fix file sender bug | 30 minutes |
 | 1 | Fix notification inconsistency | 2-3 days |
 | 2 | Fix real-time message delivery | 2-3 days |
 | 6 | Fix Android re-login | 2-3 days |
+| 12 | Fix desktop/web sign-in unresponsive | 2-4 days |
 
 ### Medium Features (2-5 days each)
 
@@ -559,6 +666,7 @@ if (kIsWeb) {
 | 4 | Media/files tabs | 2-3 days |
 | 7 | Role-based DM permissions | 1-2 days |
 | 5 | Web notifications | 2-3 days |
+| 13 | Admin password reset (no old password) | 2 days |
 
 ### Larger Features
 
